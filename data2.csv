@@ -1,0 +1,6 @@
+Account Type,Account Number,Transaction Date,Cheque Number,category,merchant,CAD$,USD$
+Chequing,00999-111111,4/15/2024,,grocery,metro,-55.23,
+Chequing,00999-111112,4/15/2025,,grocery,sobeys,100,
+Chequing,00999-111113,4/15/2026,,grocery,maxi,-5523,
+Chequing,00999-111114,4/15/2027,,grocery,walmart,200,
+Chequing,00999-111115,4/15/2028,,grocery,freshco,10,
