@@ -17,7 +17,7 @@ interface TransactionTableProps {
   transactions: ParsedData[]
   onDelete: (index: number) => void
   onEdit: (index: number, transaction: ParsedData) => void
-  onTransactionAdd: (transaction: ParsedData) => void
+  onTransactionAdd: (transactions: ParsedData[]) => void
 }
 
 export default function TransactionTable({ 

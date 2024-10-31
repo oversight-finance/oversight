@@ -9,28 +9,31 @@ import TransactionTable from "@/components/TransactionTable/TransactionTable"
 import { type ParsedData, type NetWorthDataPoint, transformCSVToNetWorthData, defaultNetWorthData } from "@/utils/dataTransformers"
 import AddTransaction from "@/components/AddTransaction/AddTransaction"
 
+// Helper function to sort transactions by date (most recent first)
+const sortTransactionsByDate = (transactions: ParsedData[]): ParsedData[] => {
+  return [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime())
+}
+
 export default function Dashboard() {
   const [transactions, setTransactions] = useState<ParsedData[]>([])
   const [networthData, setNetworthData] = useState<NetWorthDataPoint[]>(defaultNetWorthData)
 
   const handleDataUpdate = (data: ParsedData[]) => {
-    setTransactions(data)
-    updateNetworth([...data])
+    const sortedTransactions = sortTransactionsByDate(data)
+    setTransactions(sortedTransactions)
+    updateNetworth(data)
   }
 
-  const handleTransactionAdd = (newTransaction: ParsedData) => {
-    const updatedTransactions = [...transactions, newTransaction]
+  const handleTransactionAdd = (newTransactions: ParsedData[]) => {
+    const updatedTransactions = sortTransactionsByDate([...transactions, ...newTransactions])
     setTransactions(updatedTransactions)
-    updateNetworth(updatedTransactions)
+    updateNetworth([...updatedTransactions].reverse())
   }
 
   const updateNetworth = (data: ParsedData[]) => {
-    // Sort transactions by date
-    const sortedData = [...data].sort((a, b) => a.date.getTime() - b.date.getTime())
-    
-    // Calculate running total of transactions to get net worth over time
+    const ascendingData = [...data].sort((a, b) => a.date.getTime() - b.date.getTime())
     let runningTotal = 0
-    const networthPoints: NetWorthDataPoint[] = sortedData.map(transaction => {
+    const networthPoints: NetWorthDataPoint[] = ascendingData.map(transaction => {
       runningTotal += transaction.amount
       return {
         date: transaction.date,
@@ -42,16 +45,21 @@ export default function Dashboard() {
   }
 
   const handleTransactionDelete = (index: number) => {
-    const updatedTransactions = transactions.filter((_, i) => i !== index)
+    const updatedTransactions = sortTransactionsByDate(
+      transactions.filter((_, i) => i !== index)
+    )
     setTransactions(updatedTransactions)
-    updateNetworth(updatedTransactions)
+    updateNetworth([...updatedTransactions].reverse())
   }
 
   const handleTransactionEdit = (index: number, updatedTransaction: ParsedData) => {
-    const updatedTransactions = [...transactions]
-    updatedTransactions[index] = updatedTransaction
+    const updatedTransactions = sortTransactionsByDate([
+      ...transactions.slice(0, index),
+      updatedTransaction,
+      ...transactions.slice(index + 1)
+    ])
     setTransactions(updatedTransactions)
-    updateNetworth(updatedTransactions)
+    updateNetworth([...updatedTransactions].reverse())
   }
 
   return (
@@ -59,9 +67,7 @@ export default function Dashboard() {
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="flex-1 p-4 md:p-6">
-          {/* Mobile view: Stack vertically */}
           <div className="flex flex-col lg:flex-row lg:justify-between gap-4 lg:gap-6">
-            {/* Main content area */}
             <div className="space-y-4 md:space-y-6 w-full lg:flex-1">
               <Networth data={networthData} />            
               <TransactionTable 
@@ -72,7 +78,6 @@ export default function Dashboard() {
               />
             </div>
             
-            {/* CSV Uploader */}
             <div className="w-full lg:w-96">
               <CSVUploader onDataUpdate={handleDataUpdate} />
             </div>

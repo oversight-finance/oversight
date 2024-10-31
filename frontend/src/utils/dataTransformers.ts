@@ -18,6 +18,9 @@ export interface ParsedData {
     merchant: string;
     amount: number;
     amountUSD: number;
+    isRecurring?: boolean;
+    recurringFrequency?: 'weekly' | 'monthly' | 'yearly';
+    recurringEndDate?: Date | null;
 }
 
 export interface NetWorthDataPoint {
