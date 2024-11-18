@@ -158,21 +158,21 @@ export default function Networth({ data }: NetworthProps) {
   const periodDateRange = getPeriodDateRange(filteredData);
 
   return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Net Worth Over Time</CardTitle>
-          <CardDescription>
-            Tracking your financial progress month by month
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            <ChartContainer config={chartConfig} className="h-[300px]">
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle>Net Worth Over Time</CardTitle>
+        <CardDescription>
+          Tracking your financial progress month by month
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="space-y-4">
+          <div className="px-6">
+            <ChartContainer config={chartConfig} className="h-[250px]">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={filteredData}
-                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+                  margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient id="negativeGradient" x1="0" y1="0" x2="0" y2="1">
@@ -193,8 +193,8 @@ export default function Networth({ data }: NetworthProps) {
                   <YAxis 
                     tickFormatter={formatLargeNumber}
                     domain={['auto', 'auto']}
-                    tickCount={8}
-                    width={80}
+                    tickCount={6}
+                    width={60}
                     axisLine={false}
                     tickLine={false}
                   />
@@ -225,8 +225,10 @@ export default function Networth({ data }: NetworthProps) {
                 </AreaChart>
               </ResponsiveContainer>
             </ChartContainer>
+          </div>
 
-            <div className="flex items-center justify-between pt-2 border-t">
+          <div className="px-6 pt-4 border-t">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
@@ -257,7 +259,7 @@ export default function Networth({ data }: NetworthProps) {
                       setStartIndex(0);
                     }}
                     className={cn(
-                      "h-8 rounded-none px-3 first:rounded-l-md last:rounded-r-md",
+                      "h-8 rounded-none px-2 text-xs md:px-3 md:text-sm first:rounded-l-md last:rounded-r-md",
                       selectedRange === range && "bg-muted font-medium"
                     )}
                   >
@@ -267,28 +269,28 @@ export default function Networth({ data }: NetworthProps) {
               </div>
             </div>
           </div>
-        </CardContent>
-        <CardFooter>
-          <div className="flex w-full items-start gap-2 text-sm">
-            <div className="grid gap-2">
-              <div className="flex items-center gap-2 font-medium leading-none">
-                {filteredData.length > 1 ? (
-                  netWorthChange >= 0 ? (
-                    <>Net worth up by {netWorthChange.toFixed(1)}% in {selectedRange} <TrendingUp className="h-4 w-4 text-success" /></>
-                  ) : (
-                    <>Net worth down by {Math.abs(netWorthChange).toFixed(1)}% in {selectedRange} <TrendingDown className="h-4 w-4 text-destructive" /></>
-                  )
+        </div>
+      </CardContent>
+      <CardFooter className="border-t">
+        <div className="flex w-full items-start gap-2 text-xs md:text-sm">
+          <div className="grid gap-2">
+            <div className="flex items-center gap-2 font-medium leading-none">
+              {filteredData.length > 1 ? (
+                netWorthChange >= 0 ? (
+                  <>Net worth up by {netWorthChange.toFixed(1)}% in {selectedRange} <TrendingUp className="h-4 w-4 text-success" /></>
                 ) : (
-                  <>Initial net worth: {formatLargeNumber(filteredData[0]?.netWorth ?? 0)}</>
-                )}
-              </div>
-              <div className="flex items-center gap-2 leading-none text-muted-foreground">
-                {periodDateRange}
-              </div>
+                  <>Net worth down by {Math.abs(netWorthChange).toFixed(1)}% in {selectedRange} <TrendingDown className="h-4 w-4 text-destructive" /></>
+                )
+              ) : (
+                <>Initial net worth: {formatLargeNumber(filteredData[0]?.netWorth ?? 0)}</>
+              )}
+            </div>
+            <div className="flex items-center gap-2 leading-none text-muted-foreground">
+              {periodDateRange}
             </div>
           </div>
-        </CardFooter>
-      </Card>
-    </div>
+        </div>
+      </CardFooter>
+    </Card>
   )
 }

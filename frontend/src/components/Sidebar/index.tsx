@@ -8,8 +8,9 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { Home, User, BarChart, Sliders, Settings } from "lucide-react";
-
+import { Home, User, BarChart, Sliders, Settings, Link } from "lucide-react";
+import Optimizer from "@/components/Optimizer/Optimizer";
+import Accounts from "@/components/Accounts/Accounts";
 
 const items = [
     {
@@ -18,19 +19,9 @@ const items = [
         icon: Home,
     },
     {
-        title: "Accounts",
-        url: "#",
-        icon: User,
-    },
-    {
         title: "Investments",
         url: "#",
         icon: BarChart,
-    },
-    {
-        title: "Optimizer",
-        url: "#",
-        icon: Sliders,
     },
     {
         title: "Settings",
@@ -57,6 +48,18 @@ function AppSidebar() {
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                             ))}
+                            <SidebarMenuItem>
+                                <SidebarMenuButton>
+                                    <Link />
+                                    <Accounts />
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <SidebarMenuButton>
+                                    <Sliders />
+                                    <Optimizer />
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarGroupContent>
                 </SidebarGroup>

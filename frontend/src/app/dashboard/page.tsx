@@ -6,6 +6,7 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import CSVUploader from "../csvParser"
 import Networth from "@/components/Networth/Networth"
 import TransactionTable from "@/components/TransactionTable/TransactionTable"
+import SpendingChart from "@/components/SpendingChart/SpendingChart"
 import { type ParsedData, type NetWorthDataPoint, transformCSVToNetWorthData, defaultNetWorthData } from "@/utils/dataTransformers"
 import AddTransaction from "@/components/AddTransaction/AddTransaction"
 
@@ -66,20 +67,34 @@ export default function Dashboard() {
     <SidebarProvider>
       <div className="flex min-h-screen">
         <Sidebar />
-        <div className="flex-1 p-4 md:p-6">
-          <div className="flex flex-col lg:flex-row lg:justify-between gap-4 lg:gap-6">
-            <div className="space-y-4 md:space-y-6 w-full lg:flex-1">
-              <Networth data={networthData} />            
-              <TransactionTable 
-                transactions={transactions} 
-                onDelete={handleTransactionDelete}
-                onEdit={handleTransactionEdit}
-                onTransactionAdd={handleTransactionAdd}
-              />
+        <div className="flex-1 p-4 md:p-6 overflow-hidden">
+          <div className="flex flex-col gap-4 md:gap-6 max-w-[1600px] mx-auto">
+            {/* Top Section with Charts */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+              <div className="w-full min-w-0"> {/* min-w-0 prevents flex child overflow */}
+                <Networth data={networthData} />
+              </div>
+              <div className="w-full min-w-0">
+                <SpendingChart />
+              </div>
             </div>
-            
-            <div className="w-full lg:w-96">
-              <CSVUploader onDataUpdate={handleDataUpdate} />
+
+            {/* Bottom Section */}
+            <div className="flex flex-col xl:flex-row gap-4 md:gap-6">
+              {/* Transactions Table */}
+              <div className="flex-1 min-w-0"> {/* min-w-0 prevents flex child overflow */}
+                <TransactionTable 
+                  transactions={transactions} 
+                  onDelete={handleTransactionDelete}
+                  onEdit={handleTransactionEdit}
+                  onTransactionAdd={handleTransactionAdd}
+                />
+              </div>
+              
+              {/* CSV Uploader */}
+              <div className="w-full xl:w-80 shrink-0">
+                <CSVUploader onDataUpdate={handleDataUpdate} />
+              </div>
             </div>
           </div>
         </div>
