@@ -7,27 +7,36 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, CheckCircle2, Link as LinkIcon } from "lucide-react"
+import { useAccounts } from "@/contexts/AccountsContext"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type LinkingState = "initial" | "loading" | "linking" | "success"
 
 export default function Accounts() {
+  const { addAccount } = useAccounts()
   const [open, setOpen] = useState(false)
   const [linkingState, setLinkingState] = useState<LinkingState>("initial")
   const [bankName, setBankName] = useState("")
   const [accountNumber, setAccountNumber] = useState("")
+  const [accountType, setAccountType] = useState("checking")
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (bankName && accountNumber) {
       setLinkingState("loading")
       // Simulate analyzing credentials
-      setTimeout(() => {
-        setLinkingState("linking")
-        // Simulate bank connection
-        setTimeout(() => {
-          setLinkingState("success")
-        }, 2000)
-      }, 1500)
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      setLinkingState("linking")
+      // Simulate bank connection
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Add the account to context
+      addAccount({
+        bankName,
+        accountNumber,
+        accountType,
+        balance: Math.random() * 10000, // Simulated balance
+      })
+      setLinkingState("success")
     }
   }
 
@@ -104,6 +113,20 @@ export default function Accounts() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label htmlFor="accountType">Account Type</Label>
+                  <Select value={accountType} onValueChange={setAccountType}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="checking">Checking</SelectItem>
+                      <SelectItem value="savings">Savings</SelectItem>
+                      <SelectItem value="credit">Credit Card</SelectItem>
+                      <SelectItem value="investment">Investment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="accountNumber">Account Number</Label>
                   <Input
                     id="accountNumber"
@@ -129,9 +152,11 @@ export default function Accounts() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" className="w-full justify-start">
-          <span>Link Accounts</span>
-        </Button>
+        <div className="w-full">
+          <Button variant="ghost" className="w-full justify-start">
+            <span>Link Accounts</span>
+          </Button>
+        </div>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>

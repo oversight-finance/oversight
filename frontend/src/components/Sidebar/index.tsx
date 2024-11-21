@@ -49,16 +49,14 @@ function AppSidebar() {
                                 </SidebarMenuItem>
                             ))}
                             <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <Link />
+                                <div className="w-full">
                                     <Accounts />
-                                </SidebarMenuButton>
+                                </div>
                             </SidebarMenuItem>
                             <SidebarMenuItem>
-                                <SidebarMenuButton>
-                                    <Sliders />
+                                <div className="w-full">
                                     <Optimizer />
-                                </SidebarMenuButton>
+                                </div>
                             </SidebarMenuItem>
                         </SidebarMenu>
                     </SidebarGroupContent>

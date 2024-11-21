@@ -7,8 +7,9 @@ import CSVUploader from "../csvParser"
 import Networth from "@/components/Networth/Networth"
 import TransactionTable from "@/components/TransactionTable/TransactionTable"
 import SpendingChart from "@/components/SpendingChart/SpendingChart"
-import { type ParsedData, type NetWorthDataPoint, transformCSVToNetWorthData, defaultNetWorthData } from "@/utils/dataTransformers"
-import AddTransaction from "@/components/AddTransaction/AddTransaction"
+import { type ParsedData, type NetWorthDataPoint, defaultNetWorthData } from "@/utils/dataTransformers"
+import { AccountsProvider } from "@/contexts/AccountsContext"
+import LinkedAccounts from "@/components/LinkedAccounts/LinkedAccounts"
 
 // Helper function to sort transactions by date (most recent first)
 const sortTransactionsByDate = (transactions: ParsedData[]): ParsedData[] => {
@@ -64,41 +65,46 @@ export default function Dashboard() {
   }
 
   return (
-    <SidebarProvider>
-      <div className="flex min-h-screen">
-        <Sidebar />
-        <div className="flex-1 p-4 md:p-6 overflow-hidden">
-          <div className="flex flex-col gap-4 md:gap-6 max-w-[1600px] mx-auto">
-            {/* Top Section with Charts */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-              <div className="w-full min-w-0"> {/* min-w-0 prevents flex child overflow */}
-                <Networth data={networthData} />
-              </div>
-              <div className="w-full min-w-0">
-                <SpendingChart />
-              </div>
-            </div>
-
-            {/* Bottom Section */}
-            <div className="flex flex-col xl:flex-row gap-4 md:gap-6">
-              {/* Transactions Table */}
-              <div className="flex-1 min-w-0"> {/* min-w-0 prevents flex child overflow */}
-                <TransactionTable 
-                  transactions={transactions} 
-                  onDelete={handleTransactionDelete}
-                  onEdit={handleTransactionEdit}
-                  onTransactionAdd={handleTransactionAdd}
-                />
-              </div>
+    <AccountsProvider>
+      <SidebarProvider>
+        <div className="flex min-h-screen">
+          <Sidebar />
+          <div className="flex-1 p-4 md:p-6 overflow-hidden">
+            <div className="flex flex-col gap-4 md:gap-6 max-w-[1600px] mx-auto">
+              {/* Linked Accounts Section */}
+              <LinkedAccounts />
               
-              {/* CSV Uploader */}
-              <div className="w-full xl:w-80 shrink-0">
-                <CSVUploader onDataUpdate={handleDataUpdate} />
+              {/* Top Section with Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+                <div className="w-full min-w-0"> {/* min-w-0 prevents flex child overflow */}
+                  <Networth data={networthData} />
+                </div>
+                <div className="w-full min-w-0">
+                  <SpendingChart />
+                </div>
+              </div>
+
+              {/* Bottom Section */}
+              <div className="flex flex-col xl:flex-row gap-4 md:gap-6">
+                {/* Transactions Table */}
+                <div className="flex-1 min-w-0"> {/* min-w-0 prevents flex child overflow */}
+                  <TransactionTable 
+                    transactions={transactions} 
+                    onDelete={handleTransactionDelete}
+                    onEdit={handleTransactionEdit}
+                    onTransactionAdd={handleTransactionAdd}
+                  />
+                </div>
+                
+                {/* CSV Uploader */}
+                <div className="w-full xl:w-80 shrink-0">
+                  <CSVUploader onDataUpdate={handleDataUpdate} />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </div>
-    </SidebarProvider>
+      </SidebarProvider>
+    </AccountsProvider>
   )
 }
