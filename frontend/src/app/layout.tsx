@@ -1,20 +1,20 @@
-"use client"
+"use client";
 
-import { Inter } from "next/font/google"
-import { AccountsProvider } from "@/contexts/AccountsContext"
-import { SidebarProvider } from "@/components/ui/sidebar"
-import Sidebar from "@/components/Sidebar"
-import "@/app/globals.css"
+import { Inter } from "next/font/google";
+import { AccountsProvider } from "@/contexts/AccountsContext";
+import { SidebarProvider } from "@/components/ui/sidebar";
+import Sidebar from "@/components/Sidebar";
+import "@/app/globals.css";
 
-const inter = Inter({ subsets: ["latin"] })
+const inter = Inter({ subsets: ["latin"] });
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
-    <html lang="en" >
+    <html lang="en">
       <body className={inter.className}>
         <AccountsProvider>
           <SidebarProvider>
@@ -28,5 +28,5 @@ export default function RootLayout({
         </AccountsProvider>
       </body>
     </html>
-  )
+  );
 }
