@@ -3,7 +3,6 @@
 import { useState } from "react"
 import { Plus } from "lucide-react"
 import { format } from "date-fns"
-import { type ParsedData } from "@/utils/dataTransformers"
 import {
   Dialog,
   DialogContent,
@@ -46,7 +45,24 @@ const formSchema = z.object({
   isRecurring: z.boolean().default(false),
   recurringFrequency: z.enum(['weekly', 'monthly', 'yearly']).optional(),
   recurringEndDate: z.string().optional(),
-})
+}).superRefine((data, ctx) => {
+  if (data.isRecurring) {
+    if (!data.recurringFrequency) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Frequency is required for recurring transactions",
+        path: ["recurringFrequency"],
+      });
+    }
+    if (!data.recurringEndDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End date is required for recurring transactions",
+        path: ["recurringEndDate"],
+      });
+    }
+  }
+});
 
 interface AddTransactionProps {
   onTransactionAdd: (transactions: Transaction[]) => void
@@ -272,7 +288,7 @@ function generateRecurringTransactions(baseTransaction: Transaction): Transactio
 
   if (!endDate || !baseTransaction.recurringFrequency) return [baseTransaction]
 
-  let currentDate = new Date(startDate)
+  const currentDate = new Date(startDate)
   const endDateTime = new Date(endDate)
   while (currentDate <= endDateTime) {
     transactions.push({
