@@ -1,8 +1,15 @@
-"use client"
+"use client";
 
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer } from "@/components/ui/chart"
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  Legend,
+  Tooltip,
+} from "recharts";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer } from "@/components/ui/chart";
 
 // Sample data - replace with real data in production
 const spendingData = [
@@ -11,16 +18,16 @@ const spendingData = [
   { name: "Food", value: 800, color: "hsl(var(--chart-3))" },
   { name: "Utilities", value: 300, color: "hsl(var(--chart-4))" },
   { name: "Entertainment", value: 400, color: "hsl(var(--chart-5))" },
-]
+];
 
 const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(value)
-}
+  }).format(value);
+};
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -39,13 +46,13 @@ const CustomTooltip = ({ active, payload }: any) => {
           </div>
         </div>
       </div>
-    )
+    );
   }
-  return null
-}
+  return null;
+};
 
 export default function SpendingChart() {
-  const total = spendingData.reduce((sum, item) => sum + item.value, 0)
+  const total = spendingData.reduce((sum, item) => sum + item.value, 0);
 
   return (
     <Card className="h-full">
@@ -53,7 +60,7 @@ export default function SpendingChart() {
         <CardTitle>Spending Categories</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="h-[250px] md:h-[300px]">
+        <div className="h-[350px] md:h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -70,12 +77,12 @@ export default function SpendingChart() {
                 ))}
               </Pie>
               <Tooltip content={<CustomTooltip />} />
-              <Legend 
-                layout="vertical" 
-                align="right"
-                verticalAlign="middle"
+              <Legend
+                layout="vertical"
+                align="center"
+                verticalAlign="bottom"
                 wrapperStyle={{
-                  paddingLeft: '10px',
+                  paddingLeft: "10px",
                 }}
                 formatter={(value, entry: any) => (
                   <span className="text-xs md:text-sm">
@@ -88,5 +95,5 @@ export default function SpendingChart() {
         </div>
       </CardContent>
     </Card>
-  )
-} 
+  );
+}

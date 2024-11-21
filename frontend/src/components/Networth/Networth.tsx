@@ -203,7 +203,7 @@ export default function Networth({ data }: NetworthProps) {
       <CardContent className="p-0">
         <div className="space-y-4">
           <div className="px-6">
-            <ChartContainer config={chartConfig} className="h-[250px]">
+            <ChartContainer config={chartConfig} className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={filteredData}
@@ -284,7 +284,7 @@ export default function Networth({ data }: NetworthProps) {
             </ChartContainer>
           </div>
 
-          <div className="px-6 pt-4 border-t">
+          <div className="px-6 py-2 border-t">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <Button
@@ -305,7 +305,7 @@ export default function Networth({ data }: NetworthProps) {
                 </Button>
               </div>
 
-              <div className="flex items-center rounded-md border">
+              <div className="flex items-center rounded-md border ">
                 {(["3M", "6M", "1Y", "2Y", "ALL"] as TimeRange[]).map(
                   (range) => (
                     <Button
@@ -331,7 +331,7 @@ export default function Networth({ data }: NetworthProps) {
         </div>
       </CardContent>
       <CardFooter className="border-t">
-        <div className="flex w-full items-start gap-2 text-xs md:text-sm">
+        <div className="flex w-full items-start gap-2 text-xs md:text-sm pt-2">
           <div className="grid gap-2">
             <div className="flex items-center gap-2 font-medium leading-none">
               {filteredData.length > 1 ? (

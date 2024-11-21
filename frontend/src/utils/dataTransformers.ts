@@ -29,7 +29,7 @@ export interface NetWorthDataPoint {
 }
 
 export const defaultNetWorthData: NetWorthDataPoint[] = [
-    { date: new Date("2023-01-12T15:23:00Z"), netWorth: -15000 },
+    { date: new Date("2024-01-01T15:23:00Z"), netWorth: -15000 },
     { date: new Date("2024-01-12T15:23:00Z"), netWorth: -5000 },
     { date: new Date("2024-02-18T09:45:00Z"), netWorth: -2000 },
     { date: new Date("2024-03-14T12:37:00Z"), netWorth: 1000 },
