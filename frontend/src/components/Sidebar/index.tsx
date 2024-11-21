@@ -5,23 +5,17 @@ import {
     SidebarGroupContent,
     SidebarGroupLabel,
     SidebarMenu,
-    SidebarMenuButton,
     SidebarMenuItem,
+    SidebarMenuButton,
 } from "@/components/ui/sidebar";
-import { Home, User, BarChart, Sliders, Settings, Link } from "lucide-react";
-import Optimizer from "@/components/Optimizer/Optimizer";
-import Accounts from "@/components/Accounts/Accounts";
+import { Home, Settings } from "lucide-react";
+import { AccountsSidebar } from "@/components/ui/AccountsSidebar";
 
 const items = [
     {
         title: "Dashboard",
         url: "/dashboard",
         icon: Home,
-    },
-    {
-        title: "Investments",
-        url: "#",
-        icon: BarChart,
     },
     {
         title: "Settings",
@@ -35,7 +29,7 @@ function AppSidebar() {
         <Sidebar>
             <SidebarContent>
                 <SidebarGroup>
-                    <SidebarGroupLabel>Application</SidebarGroupLabel>
+                    <SidebarGroupLabel className="text-base font-semibold">Oversight</SidebarGroupLabel>
                     <SidebarGroupContent>
                         <SidebarMenu>
                             {items.map((item) => (
@@ -48,17 +42,14 @@ function AppSidebar() {
                                     </SidebarMenuButton>
                                 </SidebarMenuItem>
                             ))}
-                            <SidebarMenuItem>
-                                <div className="w-full">
-                                    <Accounts />
-                                </div>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <div className="w-full">
-                                    <Optimizer />
-                                </div>
-                            </SidebarMenuItem>
                         </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+
+                <SidebarGroup>
+                    <SidebarGroupLabel className="text-base font-semibold">Assets</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <AccountsSidebar />
                     </SidebarGroupContent>
                 </SidebarGroup>
             </SidebarContent>

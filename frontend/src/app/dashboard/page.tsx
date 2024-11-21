@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "@/components/Sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import CSVUploader from "../csvParser";
@@ -12,41 +12,33 @@ import {
   type NetWorthDataPoint,
   defaultNetWorthData,
 } from "@/utils/dataTransformers";
-import { AccountsProvider } from "@/contexts/AccountsContext";
-import LinkedAccounts from "@/components/LinkedAccounts/LinkedAccounts";
-
-// Helper function to sort transactions by date (most recent first)
-const sortTransactionsByDate = (transactions: ParsedData[]): ParsedData[] => {
-  return [...transactions].sort((a, b) => b.date.getTime() - a.date.getTime());
-};
+import { AccountsProvider, useAccounts } from "@/contexts/AccountsContext";
+import CreateAccount from "@/components/LinkedAccounts/CreateAccount";
+import CreateAssetMessage from "@/components/CreateAssetMessage/CreateAssetMessage";
+import MonthlyGraph from "@/components/MonthlyGraph/MonthlyGraph";
 
 export default function Dashboard() {
-  const [transactions, setTransactions] = useState<ParsedData[]>([]);
-  const [assets, setAssets] = useState<ParsedData[]>([]);
-  const [networthData, setNetworthData] =
-    useState<NetWorthDataPoint[]>(defaultNetWorthData);
+  const { accounts } = useAccounts();
+  const [networthData, setNetworthData] = useState<NetWorthDataPoint[]>([]);
 
-  const handleDataUpdate = (data: ParsedData[]) => {
-    const sortedTransactions = sortTransactionsByDate(data);
-    setTransactions(sortedTransactions);
-    updateNetworth(data);
-  };
+  // Calculate networth data from all accounts
+  const calculateNetworth = () => {
+    // Get all transactions from all accounts
+    const allTransactions = accounts.flatMap(account =>
+      account.transactions.map(transaction => ({
+        date: new Date(transaction.date),
+        amount: transaction.amount
+      }))
+    );
 
-  const handleTransactionAdd = (newTransactions: ParsedData[]) => {
-    const updatedTransactions = sortTransactionsByDate([
-      ...transactions,
-      ...newTransactions,
-    ]);
-    setTransactions(updatedTransactions);
-    updateNetworth([...updatedTransactions].reverse());
-  };
-
-  const updateNetworth = (data: ParsedData[]) => {
-    const ascendingData = [...data].sort(
+    // Sort transactions by date (ascending)
+    const sortedTransactions = allTransactions.sort(
       (a, b) => a.date.getTime() - b.date.getTime()
     );
+
+    // Calculate running total for networth
     let runningTotal = 0;
-    const networthPoints: NetWorthDataPoint[] = ascendingData.map(
+    const networthPoints: NetWorthDataPoint[] = sortedTransactions.map(
       (transaction) => {
         runningTotal += transaction.amount;
         return {
@@ -55,71 +47,36 @@ export default function Dashboard() {
         };
       }
     );
-
+    console.log(networthPoints, accounts)
     setNetworthData(networthPoints);
   };
 
-  const handleTransactionDelete = (index: number) => {
-    const updatedTransactions = sortTransactionsByDate(
-      transactions.filter((_, i) => i !== index)
-    );
-    setTransactions(updatedTransactions);
-    updateNetworth([...updatedTransactions].reverse());
-  };
-
-  const handleTransactionEdit = (
-    index: number,
-    updatedTransaction: ParsedData
-  ) => {
-    const updatedTransactions = sortTransactionsByDate([
-      ...transactions.slice(0, index),
-      updatedTransaction,
-      ...transactions.slice(index + 1),
-    ]);
-    setTransactions(updatedTransactions);
-    updateNetworth([...updatedTransactions].reverse());
-  };
+  // Use useEffect to recalculate networth when accounts change
+  useEffect(() => {
+    calculateNetworth();
+  }, [accounts]);
 
   return (
-    <AccountsProvider>
-      <SidebarProvider>
-        <div className="flex min-h-screen w-full">
-          <Sidebar />
-          <div className="flex-1 p-4 md:p-6 overflow-hidden w-full">
-            <div className="flex flex-col gap-4 md:gap-6 max-w-[1000px]">
-              <LinkedAccounts />
-              {/* Top Section with Charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 md:gap-6">
-                <div className="w-full min-w-0 lg:col-span-4">
-                  {/* min-w-0 prevents flex child overflow */}
-                  <Networth data={networthData} />
-                </div>
-                <div className="w-full min-w-0 lg:col-span-2">
-                  <SpendingChart />
-                </div>
-              </div>
-
-              {/* Bottom Section */}
-              <div className="flex flex-col xl:flex-row gap-4 md:gap-6">
-                {/* Transactions Table */}
-                <div className="flex-1 min-w-0">
-                  {/* min-w-0 prevents flex child overflow */}
-                  <TransactionTable
-                    transactions={transactions}
-                    onDelete={handleTransactionDelete}
-                    onEdit={handleTransactionEdit}
-                    onTransactionAdd={handleTransactionAdd}
-                  />
-                </div>
-                {/* CSV Uploader */}
-                <div className="w-full xl:w-80 shrink-0">
-                  <CSVUploader onDataUpdate={handleDataUpdate} />
-                </div>
-              </div>
+    <div className="flex min-h-screen w-full">
+      <div className="flex-1 p-4 md:p-6 overflow-hidden w-full">
+        <div className="flex flex-col gap-4 md:gap-6 max-w-[1000px]">
+          <div className="mb-6">
+            <CreateAssetMessage />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 md:gap-6">
+            <div className="w-full min-w-0 lg:col-span-4">
+              <Networth data={networthData} />
+            </div>
+            <div className="w-full min-w-0 lg:col-span-2">
+              <SpendingChart />
             </div>
           </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
+            <MonthlyGraph type="income" />
+            <MonthlyGraph type="spending" />
+          </div>
         </div>
-      </SidebarProvider>
-    </AccountsProvider>
+      </div>
+    </div>
   );
 }

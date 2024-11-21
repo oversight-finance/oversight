@@ -1,11 +1,12 @@
-import type { Metadata } from "next";
-import { fonts } from '@/lib/fonts'
-import "./globals.css";
+"use client"
 
-export const metadata: Metadata = {
-  title: "Oversight",
-  description: "Financial OS™",
-};
+import { Inter } from "next/font/google"
+import { AccountsProvider } from "@/contexts/AccountsContext"
+import { SidebarProvider } from "@/components/ui/sidebar"
+import Sidebar from "@/components/Sidebar"
+import "@/app/globals.css"
+
+const inter = Inter({ subsets: ["latin"] })
 
 export default function RootLayout({
   children,
@@ -13,9 +14,18 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={fonts.sans.className}>
-        {children}
+    <html lang="en" >
+      <body className={inter.className}>
+        <AccountsProvider>
+          <SidebarProvider>
+            <div className="flex min-h-screen w-full bg-background text-foreground">
+              <Sidebar />
+              <div className="flex-1 p-4 md:p-6 overflow-hidden w-full">
+                {children}
+              </div>
+            </div>
+          </SidebarProvider>
+        </AccountsProvider>
       </body>
     </html>
   )

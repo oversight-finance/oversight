@@ -39,6 +39,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { formatTotalAmount } from "@/lib/utils"
 
 const chartConfig = {
   netWorth: {
@@ -195,7 +196,12 @@ export default function Networth({ data }: NetworthProps) {
   return (
     <Card className="h-full">
       <CardHeader className="pb-2">
-        <CardTitle>Net Worth Over Time</CardTitle>
+        <div className="flex justify-between items-center">
+          <CardTitle className="text-base font-medium">Net Worth</CardTitle>
+          <span className={`text-sm font-medium ${data[data.length - 1].netWorth >= 0 ? 'text-success' : 'text-destructive'}`}>
+            {formatTotalAmount(data[data.length - 1].netWorth)}
+          </span>
+        </div>
         <CardDescription>
           Tracking your financial progress month by month
         </CardDescription>
@@ -351,7 +357,7 @@ export default function Networth({ data }: NetworthProps) {
               ) : (
                 <>
                   Initial net worth:{" "}
-                  {formatLargeNumber(filteredData[0]?.netWorth ?? 0)}
+                  {formatTotalAmount(filteredData[0]?.netWorth ?? 0)}
                 </>
               )}
             </div>

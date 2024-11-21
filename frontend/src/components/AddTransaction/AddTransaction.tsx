@@ -34,6 +34,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { Switch } from "@/components/ui/switch"
+import { Transaction, TransactionType } from "@/types/Account"
 
 const formSchema = z.object({
   merchant: z.string().min(1, "Merchant name is required"),
@@ -48,7 +49,7 @@ const formSchema = z.object({
 })
 
 interface AddTransactionProps {
-  onTransactionAdd: (transactions: ParsedData[]) => void
+  onTransactionAdd: (transactions: Transaction[]) => void
 }
 
 const categories = [
@@ -66,7 +67,7 @@ const categories = [
 
 export default function AddTransaction({ onTransactionAdd }: AddTransactionProps) {
   const [open, setOpen] = useState(false)
-  
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -83,22 +84,20 @@ export default function AddTransaction({ onTransactionAdd }: AddTransactionProps
   const isRecurring = form.watch("isRecurring")
 
   function onSubmit(values: z.infer<typeof formSchema>) {
-    const baseTransaction: ParsedData = {
-      merchant: values.merchant,
+    const baseTransaction: Transaction = {
+      id: crypto.randomUUID(),
+      date: new Date(values.date).toISOString(),
       amount: Number(values.amount),
+      currency: "USD",
+      merchant: values.merchant,
       category: values.category,
-      date: new Date(values.date),
-      accountType: "Manual",
-      accountNumber: "MANUAL",
-      chequeNumber: "",
-      amountUSD: 0,
+      transactionType: TransactionType.EXTERNAL,
       isRecurring: values.isRecurring,
       recurringFrequency: values.recurringFrequency,
-      recurringEndDate: values.recurringEndDate ? new Date(values.recurringEndDate) : null,
+      recurringEndDate: values.recurringEndDate ? new Date(values.recurringEndDate).toISOString() : undefined,
     }
-    
+
     if (values.isRecurring && values.recurringFrequency && values.recurringEndDate) {
-      // Generate recurring transactions up to the end date
       const transactions = generateRecurringTransactions(baseTransaction)
       console.log("generated transactions:", transactions)
       onTransactionAdd(transactions)
@@ -147,11 +146,11 @@ export default function AddTransaction({ onTransactionAdd }: AddTransactionProps
                 <FormItem>
                   <FormLabel>Amount</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Enter amount" 
-                      type="number" 
+                    <Input
+                      placeholder="Enter amount"
+                      type="number"
                       step="0.01"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
@@ -266,20 +265,21 @@ export default function AddTransaction({ onTransactionAdd }: AddTransactionProps
   )
 }
 
-function generateRecurringTransactions(baseTransaction: ParsedData): ParsedData[] {
-  const transactions: ParsedData[] = []
+function generateRecurringTransactions(baseTransaction: Transaction): Transaction[] {
+  const transactions: Transaction[] = []
   const startDate = baseTransaction.date
   const endDate = baseTransaction.recurringEndDate
 
   if (!endDate || !baseTransaction.recurringFrequency) return [baseTransaction]
 
   let currentDate = new Date(startDate)
-  while (currentDate <= endDate) {
+  const endDateTime = new Date(endDate)
+  while (currentDate <= endDateTime) {
     transactions.push({
       ...baseTransaction,
-      date: new Date(currentDate),
+      date: currentDate.toISOString(),
     })
-    // Increment date based on frequency
+    // Increment date  based on frequency
     switch (baseTransaction.recurringFrequency) {
       case 'weekly':
         currentDate.setDate(currentDate.getDate() + 7)

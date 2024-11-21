@@ -1,6 +1,8 @@
 export interface Account {
   id: string;
   accountNumber: string;
+  name: string;
+  description: string;
   type: AccountType;
   transactions: Transaction[];
   balance: number;
@@ -35,11 +37,11 @@ export interface Transaction {
   merchant: string;
   category: string;
   description?: string;
-  
+
   // Modified linking system
   transactionGroupId?: string;  // All related transactions share the same group ID
   transactionType: TransactionType;
-  
+
   // Modified recurring fields
   isRecurring?: boolean;
   recurringParentId?: string;   // Reference to the parent transaction
@@ -53,6 +55,7 @@ export enum TransactionType {
   INTERNAL_TRANSFER = "internal_transfer",
   RECURRING_PARENT = "recurring_parent",
   RECURRING_CHILD = "recurring_child",
+  INITIAL = "initial",
 }
 
 // Helper types for managing transactions

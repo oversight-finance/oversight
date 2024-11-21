@@ -10,14 +10,21 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer } from "@/components/ui/chart";
+import { useAccounts } from "@/contexts/AccountsContext";
+import { Transaction } from "@/types/Account";
 
-// Sample data - replace with real data in production
-const spendingData = [
-  { name: "Housing", value: 2100, color: "hsl(var(--chart-1))" },
-  { name: "Transportation", value: 400, color: "hsl(var(--chart-2))" },
-  { name: "Food", value: 800, color: "hsl(var(--chart-3))" },
-  { name: "Utilities", value: 300, color: "hsl(var(--chart-4))" },
-  { name: "Entertainment", value: 400, color: "hsl(var(--chart-5))" },
+interface SpendingData {
+  name: string;
+  value: number;
+  color: string;
+}
+
+const CHART_COLORS = [
+  "hsl(var(--chart-1))",
+  "hsl(var(--chart-2))",
+  "hsl(var(--chart-3))",
+  "hsl(var(--chart-4))",
+  "hsl(var(--chart-5))",
 ];
 
 const formatCurrency = (value: number) => {
@@ -52,7 +59,46 @@ const CustomTooltip = ({ active, payload }: any) => {
 };
 
 export default function SpendingChart() {
+  const { accounts } = useAccounts();
+
+  // Get all transactions and filter out positive amounts (income)
+  const allTransactions = accounts.flatMap(account =>
+    account.transactions.filter(t => t.amount < 0)
+  );
+
+  // Group transactions by category and calculate total spending
+  const spendingByCategory = allTransactions.reduce((acc, transaction) => {
+    const category = transaction.category || 'Uncategorized';
+    acc[category] = (acc[category] || 0) + Math.abs(transaction.amount);
+    return acc;
+  }, {} as Record<string, number>);
+
+  // Convert to array and sort by value
+  const spendingData: SpendingData[] = Object.entries(spendingByCategory)
+    .map(([name, value], index) => ({
+      name,
+      value,
+      color: CHART_COLORS[index % CHART_COLORS.length],
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5); // Show top 5 categories
+
   const total = spendingData.reduce((sum, item) => sum + item.value, 0);
+
+  if (spendingData.length === 0) {
+    return (
+      <Card className="h-full">
+        <CardHeader className="pb-2">
+          <CardTitle>Spending Categories</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[350px] flex items-center justify-center text-muted-foreground">
+            No spending data available.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="h-full">
