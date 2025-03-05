@@ -5,7 +5,7 @@ import { AccountsProvider } from "@/contexts/AccountsContext";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Sidebar from "@/components/Sidebar";
-import { AuthHeader } from "@/components/auth/AuthHeader";
+import { NavBar } from "@/components/Interface/NavBar";
 import "@/app/globals.css";
 import { Button } from "@/components/ui/button";
 import { PanelLeftIcon, PanelRightIcon } from "lucide-react";
@@ -36,7 +36,7 @@ function MainContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-background text-foreground">
-      <AuthHeader />
+      <NavBar />
       <div className="flex flex-1">
         {user && <Sidebar />}
         <div className={`flex-1 p-4 md:p-6 overflow-hidden w-full`}>
