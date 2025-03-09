@@ -2,6 +2,7 @@
 
 import { Inter } from "next/font/google";
 import { AccountsProvider } from "@/contexts/AccountsContext";
+import { AssetsProvider } from "@/contexts/AssetsContext";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Sidebar from "@/components/Sidebar";
@@ -33,10 +34,12 @@ function SidebarToggle() {
 // Create a component that will conditionally render the sidebar
 function MainContent({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
+  const { state } = useSidebar();
+  const isSidebarOpen = state === "expanded";
 
   return (
     <div className="flex flex-col min-h-screen w-full bg-background text-foreground">
-      <NavBar />
+      <NavBar isSidebarOpen={isSidebarOpen} />
       <div className="flex flex-1">
         {user && <Sidebar />}
         <div className={`flex-1 p-4 md:p-6 overflow-hidden w-full`}>
@@ -58,9 +61,11 @@ export default function RootLayout({
       <body className={inter.className}>
         <AuthProvider>
           <AccountsProvider>
-            <SidebarProvider>
-              <MainContent>{children}</MainContent>
-            </SidebarProvider>
+            <AssetsProvider>
+              <SidebarProvider>
+                <MainContent>{children}</MainContent>
+              </SidebarProvider>
+            </AssetsProvider>
           </AccountsProvider>
         </AuthProvider>
       </body>

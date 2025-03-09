@@ -45,10 +45,10 @@ export default function MonthlyGraph({ type }: MonthlyGraphProps) {
 
     // Get filtered transactions
     const allTransactions = accounts.flatMap(account =>
-        account.transactions
+        (account.transactions || [])
             .filter(config.filterFn)
             .map(transaction => ({
-                date: new Date(transaction.date),
+                date: new Date(transaction.transactionDate),
                 amount: config.transformAmount(transaction.amount)
             }))
     )

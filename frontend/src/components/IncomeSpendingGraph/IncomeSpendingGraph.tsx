@@ -41,8 +41,8 @@ export default function IncomeSpendingGraph() {
 
     // Get all transactions
     const allTransactions = accounts.flatMap(account =>
-        account.transactions.map(transaction => ({
-            date: new Date(transaction.date),
+        (account.transactions || []).map(transaction => ({
+            date: new Date(transaction.transactionDate),
             amount: transaction.amount
         }))
     )

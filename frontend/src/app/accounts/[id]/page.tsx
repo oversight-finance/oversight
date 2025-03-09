@@ -12,7 +12,7 @@ import { Transaction, TransactionType } from "@/types/Account";
 
 const sortTransactionsByDate = (transactions: Transaction[]): Transaction[] => {
   return [...transactions].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+    (a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime()
   );
 };
 
@@ -26,20 +26,23 @@ export default function AccountPage() {
 
   useEffect(() => {
     if (account) {
-      setTransactions(account.transactions);
+      setTransactions(account.transactions || []);
     }
   }, [account]);
 
   const handleDataUpdate = (data: Transaction[]) => {
+    const now = new Date().toISOString();
     const newTransactions: Transaction[] = data.map((item) => ({
       id: crypto.randomUUID(),
-      date: item.date,
+      userId: account?.userId || "user1",
+      transactionDate: item.transactionDate || now,
       amount: item.amount,
       currency: "USD",
       merchant: item.merchant || "Unknown",
       category: item.category || "Uncategorized",
       description: item.description || "",
       transactionType: TransactionType.EXTERNAL,
+      createdAt: now
     }));
 
     const updatedTransactions = sortTransactionsByDate([
@@ -91,8 +94,8 @@ export default function AccountPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold">{account.name}</h1>
-          <p className="text-muted-foreground">{account.description}</p>
+          <h1 className="text-2xl font-bold">{account.bankName}</h1>
+          <p className="text-muted-foreground">{account.accountType}</p>
         </div>
         <div className="text-right">
           <div className="text-2xl font-bold">

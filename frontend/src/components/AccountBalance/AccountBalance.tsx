@@ -56,8 +56,8 @@ const formatAxisDate = (date: Date, data: BalanceDataPoint[]) => {
 };
 
 export default function AccountBalance({ account }: AccountBalanceProps) {
-  const sortedTransactions = [...account.transactions].sort(
-    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  const sortedTransactions = [...(account.transactions || [])].sort(
+    (a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()
   );
 
   let runningBalance = 0;
@@ -65,7 +65,7 @@ export default function AccountBalance({ account }: AccountBalanceProps) {
     (transaction) => {
       runningBalance += transaction.amount;
       return {
-        date: new Date(transaction.date),
+        date: new Date(transaction.transactionDate),
         balance: runningBalance,
       };
     }

@@ -1,20 +1,24 @@
+export interface User {
+  id: string;
+  firstName?: string;
+  lastName?: string;
+}
+
 export interface Account {
   id: string;
-  accountNumber: string;
-  name: string;
-  description: string;
-  type: AccountType;
-  transactions: Transaction[];
+  userId: string;
+  bankName: string;
+  accountNumber?: string;
+  accountType?: string;
+  createdAt: string;
   balance: number;
-  interestRate?: number;
+  transactions?: Transaction[];
+  metadata?: Record<string, any>;
 }
 
 export enum AccountType {
   BANK = "bank",
   INVESTMENT = "investment",
-  REAL_ESTATE = "realEstate",
-  VEHICLE = "vehicle",
-  LOAN = "loan",
   OTHER = "other",
 }
 
@@ -24,58 +28,89 @@ export enum BankAccountType {
   CREDIT = "credit",
 }
 
-export enum InvestmentType {
-  STOCK = "stock",
-  CRYPTO = "crypto",
+// Recurring schedule types
+export interface RecurringSchedule {
+  id: string;
+  userId: string;
+  frequency: string;
+  startDate: string;
+  endDate?: string;
+  paymentMethod?: string;
+  defaultAmount: number;
+  createdAt: string;
 }
 
+// Transaction related types
 export interface Transaction {
   id: string;
-  date: string;
+  accountId?: string;
+  userId: string;
+  transactionDate: string;
   amount: number;
-  currency: string;
-  merchant: string;
-  category: string;
+  currency?: string;
+  merchant?: string;
+  category?: string;
   description?: string;
-
-  // Modified linking system
-  transactionGroupId?: string;  // All related transactions share the same group ID
+  metadata?: Record<string, any>;
+  transactionGroupId?: string;
   transactionType: TransactionType;
-
-  // Modified recurring fields
-  isRecurring?: boolean;
-  recurringParentId?: string;   // Reference to the parent transaction
-  recurringFrequency?: string;
-  recurringEndDate?: string;    // Optional end date for recurring series
-  paymentMethod?: string;
+  recurringScheduleId?: string;
+  createdAt: string;
 }
 
 export enum TransactionType {
   EXTERNAL = "external",
   INTERNAL_TRANSFER = "internal_transfer",
-  RECURRING_PARENT = "recurring_parent",
-  RECURRING_CHILD = "recurring_child",
-  INITIAL = "initial",
+  RECURRING = "recurring",
+}
+
+// Asset related types
+export interface Asset {
+  id: string;
+  userId: string;
+  type: AssetType;
+  name: string;
+  purchaseValue?: number;
+  currentValue?: number;
+  purchaseDate?: string;
+  metadata?: Record<string, any>;
+  createdAt: string;
+  prices?: AssetPrice[];
+}
+
+export enum AssetType {
+  CRYPTO = "crypto",
+  STOCK = "stock",
+  REAL_ESTATE = "real_estate",
+  VEHICLE = "vehicle",
+}
+
+export interface AssetPrice {
+  id: string;
+  assetId: string;
+  priceDate: string;
+  price: number;
+  recordedAt: string;
 }
 
 // Helper types for managing transactions
 export interface TransactionGroup {
   groupId: string;
   transactions: Transaction[];
-  totalAmount: number;          // Net amount across all transactions
+  totalAmount: number;
 }
 
 // Helper functions for managing recurring transactions
 export const updateRecurringTransactions = (
   transactions: Transaction[],
-  parentId: string,
+  recurringScheduleId: string,
   fromDate: string,
   updates: Partial<Transaction>
 ): Transaction[] => {
   return transactions.map(transaction => {
     if (
-      transaction.recurringParentId === parentId &&
-      new Date(transaction.date) >= new Date(fromDate)
+      transaction.recurringScheduleId === recurringScheduleId &&
+      new Date(transaction.transactionDate) >= new Date(fromDate)
     ) {
       return { ...transaction, ...updates };
     }
@@ -83,64 +118,12 @@ export const updateRecurringTransactions = (
   });
 };
 
-// Example usage:
-/*
-// Group of linked transactions (e.g., car purchase with multiple accounts)
-const carPurchaseTransactions: Transaction[] = [
-  {
-    id: "t1",
-    amount: -30000,
-    transactionGroupId: "car-purchase-123",
-    transactionType: TransactionType.INTERNAL_TRANSFER,
-    // ... other fields
-  },
-  {
-    id: "t2",
-    amount: 30000,
-    transactionGroupId: "car-purchase-123",
-    transactionType: TransactionType.INTERNAL_TRANSFER,
-    // ... other fields
-  },
-  {
-    id: "t3",
-    amount: -5000,
-    transactionGroupId: "car-purchase-123",
-    transactionType: TransactionType.INTERNAL_TRANSFER,
-    // ... other fields
-  }
-];
+// Function types matching database functions
+export interface AccountWithBalance extends Account {
+  balance: number;
+}
 
-// Modify recurring payments after a certain date
-const updatedTransactions = updateRecurringTransactions(
-  allTransactions,
-  "recurring-parent-123",
-  "2024-03-01",
-  {
-    amount: -550,  // Update monthly payment amount
-    description: "Updated car payment"
-  }
-);
-*/
-
-// Problem 1. HOW TO GROUPING TRANSACTIONS?
-// Problem 2. CONTROLLING RECURRING GROUPS OF TRANSACTIONS
-
-
-
-//Car:
-// Transactions:
-
-
-// Car Cash:
-// Car: Transactoin +10000 car
-// Checking: -10000
-
-// Car Finance:
-// Car: Transactions +10000 Downpayment
-// Checking: -10000
-// Recurring Checking: -500/month for the next 24 months
-// Recurring payment: +370/month for the next 24 months
-
-// Currentprice(api) - Sum Transactions
-// Price you sell - how much money you put in the car = profit/loss
+export interface AccountWithTransactions extends AccountWithBalance {
+  transactions: Transaction[];
+}
 

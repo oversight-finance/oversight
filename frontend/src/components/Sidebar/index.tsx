@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sidebar";
 import Link from "next/link";
 import { Home, Settings } from "lucide-react";
-import { AccountsSidebar } from "@/components/ui/AccountsSidebar";
+import { AssetsSidebar } from "@/components/ui/AssetsSidebar";
 import { url } from "inspector";
 
 const items = [
@@ -51,11 +51,8 @@ function AppSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          <SidebarGroupLabel className="text-base font-semibold">
-            Assets
-          </SidebarGroupLabel>
           <SidebarGroupContent>
-            <AccountsSidebar />
+            <AssetsSidebar />
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
