@@ -35,7 +35,7 @@ const formatLargeNumber = (value: number) => {
   } else if (absValue >= 1000) {
     return `$${(value / 1000).toFixed(0)}K`;
   }
-  return `$${value}`;
+  return `$${value.toFixed(0)}`;
 };
 
 const formatAxisDate = (date: Date, data: NetWorthDataPoint[]) => {
@@ -71,7 +71,7 @@ const NetworthGraph: FC<NetworthGraphProps> = ({ data }) => {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
           data={data}
-          margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
+          margin={{ top: 20, right: 30, left: 80, bottom: 0 }}
         >
           <defs>
             <linearGradient id="negativeGradient" x1="0" y1="0" x2="0" y2="1">
@@ -96,22 +96,32 @@ const NetworthGraph: FC<NetworthGraphProps> = ({ data }) => {
             width={80}
             axisLine={false}
             tickLine={false}
+            tickMargin={10}
           />
           <ChartTooltip
             content={({ active, payload }) => {
               if (!active || !payload?.length) return null;
               const dataPoint = payload[0].payload;
+              
+              // Format the date for display
+              const formattedDate = dataPoint.date.toLocaleString("default", {
+                month: "long",
+                year: "numeric",
+                day: "numeric",
+              });
+              
+              // Format the net worth value
+              const formattedNetWorth = formatLargeNumber(dataPoint.netWorth);
+              
+              // Determine the color based on whether the value is positive or negative
+              const valueColor = dataPoint.netWorth >= 0 ? 'text-success' : 'text-destructive';
+              
               return (
-                <div className="rounded-lg border bg-background p-2 shadow-sm">
-                  <div className="text-sm text-muted-foreground">
-                    {dataPoint.date.toLocaleString("default", {
-                      month: "long",
-                      year: "numeric",
-                      day: "numeric",
-                    })}
-                  </div>
-                  <div className="font-bold">
-                    Net Worth: {formatLargeNumber(dataPoint.netWorth)}
+                <div className="rounded-lg border bg-background p-3 shadow-md">
+                  <div className="text-sm font-medium mb-1">{formattedDate}</div>
+                  <div className="flex items-center">
+                    <span className="text-muted-foreground mr-2">Net Worth:</span>
+                    <span className={`font-bold ${valueColor}`}>{formattedNetWorth}</span>
                   </div>
                 </div>
               );

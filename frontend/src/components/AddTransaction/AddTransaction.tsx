@@ -100,21 +100,23 @@ export default function AddTransaction({ onTransactionAdd }: AddTransactionProps
   const isRecurring = form.watch("isRecurring")
 
   function onSubmit(values: z.infer<typeof formSchema>) {
+    const now = new Date().toISOString();
     const baseTransaction: Transaction = {
       id: crypto.randomUUID(),
-      date: new Date(values.date).toISOString(),
+      userId: "user1", // Default user ID
+      transactionDate: new Date(values.date).toISOString(),
       amount: Number(values.amount),
       currency: "USD",
       merchant: values.merchant,
       category: values.category,
-      transactionType: TransactionType.EXTERNAL,
-      isRecurring: values.isRecurring,
-      recurringFrequency: values.recurringFrequency,
-      recurringEndDate: values.recurringEndDate ? new Date(values.recurringEndDate).toISOString() : undefined,
+      transactionType: values.isRecurring ? TransactionType.RECURRING : TransactionType.EXTERNAL,
+      createdAt: now,
     }
 
     if (values.isRecurring && values.recurringFrequency && values.recurringEndDate) {
-      const transactions = generateRecurringTransactions(baseTransaction)
+      // For recurring transactions, we would normally create a recurring schedule
+      // and link transactions to it. For now, we'll just create the transactions.
+      const transactions = generateRecurringTransactions(baseTransaction, values.recurringFrequency, values.recurringEndDate)
       console.log("generated transactions:", transactions)
       onTransactionAdd(transactions)
     } else {
@@ -256,7 +258,6 @@ export default function AddTransaction({ onTransactionAdd }: AddTransactionProps
                     </FormItem>
                   )}
                 />
-
                 <FormField
                   control={form.control}
                   name="recurringEndDate"
@@ -273,7 +274,9 @@ export default function AddTransaction({ onTransactionAdd }: AddTransactionProps
               </>
             )}
 
-            <Button type="submit" className="w-full">Add Transaction</Button>
+            <div className="flex justify-end">
+              <Button type="submit">Add Transaction</Button>
+            </div>
           </form>
         </Form>
       </DialogContent>
@@ -281,33 +284,48 @@ export default function AddTransaction({ onTransactionAdd }: AddTransactionProps
   )
 }
 
-function generateRecurringTransactions(baseTransaction: Transaction): Transaction[] {
-  const transactions: Transaction[] = []
-  const startDate = baseTransaction.date
-  const endDate = baseTransaction.recurringEndDate
+// Helper function to generate recurring transactions
+function generateRecurringTransactions(
+  baseTransaction: Transaction, 
+  frequency: string, 
+  endDateStr: string
+): Transaction[] {
+  const transactions: Transaction[] = [baseTransaction];
+  const startDate = new Date(baseTransaction.transactionDate);
+  const endDate = new Date(endDateStr);
+  let currentDate = new Date(startDate);
 
-  if (!endDate || !baseTransaction.recurringFrequency) return [baseTransaction]
+  // Create a recurring schedule ID that all transactions will share
+  const recurringScheduleId = crypto.randomUUID();
+  
+  // Add the schedule ID to the base transaction
+  baseTransaction.recurringScheduleId = recurringScheduleId;
 
-  const currentDate = new Date(startDate)
-  const endDateTime = new Date(endDate)
-  while (currentDate <= endDateTime) {
-    transactions.push({
-      ...baseTransaction,
-      date: currentDate.toISOString(),
-    })
-    // Increment date  based on frequency
-    switch (baseTransaction.recurringFrequency) {
-      case 'weekly':
-        currentDate.setDate(currentDate.getDate() + 7)
-        break
-      case 'monthly':
-        currentDate.setMonth(currentDate.getMonth() + 1)
-        break
-      case 'yearly':
-        currentDate.setFullYear(currentDate.getFullYear() + 1)
-        break
+  // Generate future transactions based on frequency
+  while (true) {
+    // Calculate next date based on frequency
+    if (frequency === 'weekly') {
+      currentDate = new Date(currentDate.setDate(currentDate.getDate() + 7));
+    } else if (frequency === 'monthly') {
+      currentDate = new Date(currentDate.setMonth(currentDate.getMonth() + 1));
+    } else if (frequency === 'yearly') {
+      currentDate = new Date(currentDate.setFullYear(currentDate.getFullYear() + 1));
     }
+
+    // Stop if we've passed the end date
+    if (currentDate > endDate) break;
+
+    // Create a new transaction for this date
+    const newTransaction: Transaction = {
+      ...baseTransaction,
+      id: crypto.randomUUID(),
+      transactionDate: currentDate.toISOString(),
+      recurringScheduleId: recurringScheduleId,
+      createdAt: new Date().toISOString()
+    };
+
+    transactions.push(newTransaction);
   }
 
-  return transactions
+  return transactions;
 } 

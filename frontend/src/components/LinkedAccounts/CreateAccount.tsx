@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAccounts } from "@/contexts/AccountsContext";
 import {
   Card,
@@ -27,9 +27,13 @@ const formatAccountType = (type: AccountType): string => {
     .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
 };
 
-export default function CreateAccount() {
+interface CreateAccountProps {
+  defaultType?: AccountType;
+}
+
+export default function CreateAccount({ defaultType = AccountType.BANK }: CreateAccountProps) {
   const [showFullForm, setShowFullForm] = useState(false);
-  const [selectedType, setSelectedType] = useState<AccountType>(AccountType.BANK);
+  const [selectedType, setSelectedType] = useState<AccountType>(defaultType);
   const [formData, setFormData] = useState({
     accountName: "",
     accountNumber: "",
@@ -37,6 +41,14 @@ export default function CreateAccount() {
     balance: 0,
     interestRate: 0,
   });
+
+  // Update selected type when defaultType changes
+  useEffect(() => {
+    setSelectedType(defaultType);
+    if (defaultType !== AccountType.BANK) {
+      setShowFullForm(true);
+    }
+  }, [defaultType]);
 
   if (!showFullForm) {
     return (
@@ -75,13 +87,39 @@ export default function CreateAccount() {
     );
   }
 
+  // Get the appropriate title based on the selected account type
+  const getFormTitle = () => {
+    switch (selectedType) {
+      case AccountType.BANK:
+        return "Create New Bank Account";
+      case AccountType.INVESTMENT:
+        return "Add New Investment Account";
+      case AccountType.OTHER:
+        return "Add New Account";
+      default:
+        return "Add New Account";
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Create New Bank Account</CardTitle>
+        <CardTitle>{getFormTitle()}</CardTitle>
       </CardHeader>
       <CardContent>
         {selectedType === AccountType.BANK && <BankForm />}
+        {selectedType !== AccountType.BANK && (
+          <div className="p-4 text-center text-muted-foreground">
+            <p>This account type is not yet implemented.</p>
+            <Button 
+              variant="outline" 
+              className="mt-4"
+              onClick={() => setShowFullForm(false)}
+            >
+              Go Back
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

@@ -7,11 +7,11 @@ import { AccountType } from "@/types/Account";
 export default function BankForm() {
     const { addAccount } = useAccounts();
     const [formData, setFormData] = useState({
-        name: "",
-        description: "",
+        bankName: "",
         accountNumber: "",
-        type: AccountType.BANK,
+        accountType: AccountType.BANK,
         balance: 0,
+        userId: "user1", // Default user ID
     });
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -26,35 +26,23 @@ export default function BankForm() {
 
         // Reset form
         setFormData({
-            name: "",
-            description: "",
+            bankName: "",
             accountNumber: "",
-            type: AccountType.BANK,
+            accountType: AccountType.BANK,
             balance: 0,
+            userId: "user1",
         });
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-                <label htmlFor="name">Bank Name</label>
+                <label htmlFor="bankName">Bank Name</label>
                 <Input
-                    id="name"
-                    value={formData.name}
+                    id="bankName"
+                    value={formData.bankName}
                     onChange={(e) =>
-                        setFormData({ ...formData, name: e.target.value })
-                    }
-                    required
-                />
-            </div>
-
-            <div className="space-y-2">
-                <label htmlFor="description">Account Description</label>
-                <Input
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) =>
-                        setFormData({ ...formData, description: e.target.value })
+                        setFormData({ ...formData, bankName: e.target.value })
                     }
                     required
                 />
