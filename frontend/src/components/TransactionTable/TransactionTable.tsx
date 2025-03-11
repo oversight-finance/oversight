@@ -1,87 +1,87 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Pencil, Trash2, X, Check } from "lucide-react"
-import { Transaction } from "@/types/Account"
-import AddTransaction from "@/components/AddTransaction/AddTransaction"
-import { formatCurrency } from "@/lib/utils"
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Pencil, Trash2, X, Check } from "lucide-react";
+import { Transaction } from "@/types/Account";
+import AddTransaction from "@/components/AddTransaction/AddTransaction";
+import { formatCurrency } from "@/lib/utils";
 
 interface TransactionTableProps {
-  transactions: Transaction[]
-  onDelete: (index: number) => void
-  onEdit: (index: number, transaction: Transaction) => void
-  onTransactionAdd: (transactions: Transaction[]) => void
+  transactions: Transaction[];
+  onDelete: (transactionId: string) => void;
+  onEdit: (transactionId: string, transaction: Partial<Transaction>) => void;
+  onTransactionAdd: (transactions: Transaction[]) => void;
 }
 
 export default function TransactionTable({
   transactions,
   onDelete,
   onEdit,
-  onTransactionAdd
+  onTransactionAdd,
 }: TransactionTableProps) {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingTransaction, setEditingTransaction] =
+    useState<Transaction | null>(null);
 
-  const handleEditClick = (index: number) => {
-    setEditingIndex(index)
-    setEditingTransaction({ ...transactions[index] })
-  }
+  const handleEditClick = (transaction: Transaction) => {
+    setEditingId(transaction.id);
+    setEditingTransaction({ ...transaction });
+  };
 
   const handleEditCancel = () => {
-    setEditingIndex(null)
-    setEditingTransaction(null)
-  }
+    setEditingId(null);
+    setEditingTransaction(null);
+  };
 
-  const handleEditSave = (index: number) => {
+  const handleEditSave = (transactionId: string) => {
     if (editingTransaction) {
-      onEdit(index, editingTransaction)
-      setEditingIndex(null)
-      setEditingTransaction(null)
+      // Only send modified fields to avoid unnecessary updates
+      const { id, createdAt, ...restTransaction } = editingTransaction;
+      onEdit(transactionId, restTransaction);
+      setEditingId(null);
+      setEditingTransaction(null);
     }
-  }
+  };
 
   const handleEditChange = (field: keyof Transaction, value: string) => {
-    if (!editingTransaction) return
+    if (!editingTransaction) return;
 
-    const updates: Partial<Transaction> = {}
+    const updates: Partial<Transaction> = {};
 
     switch (field) {
-      case 'transactionDate':
-        updates.transactionDate = new Date(value).toISOString()
-        break
-      case 'amount':
-        updates.amount = parseFloat(value)
-        break
-      case 'merchant':
-        updates.merchant = value
-        break
-      case 'category':
-        updates.category = value
-        break
-      case 'description':
-        updates.description = value
-        break
+      case "transactionDate":
+        updates.transactionDate = new Date(value).toISOString();
+        break;
+      case "amount":
+        updates.amount = parseFloat(value);
+        break;
+      case "merchant":
+        updates.merchant = value;
+        break;
+      case "category":
+        updates.category = value;
+        break;
+      case "description":
+        updates.description = value;
+        break;
       default:
-        return
+        return;
     }
 
-    setEditingTransaction({ ...editingTransaction, ...updates })
-  }
+    setEditingTransaction({ ...editingTransaction, ...updates });
+  };
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Transactions</CardTitle>
         <AddTransaction
-          onTransactionAdd={(parsedData) => onTransactionAdd(parsedData as Transaction[])}
+          onTransactionAdd={(parsedData) =>
+            onTransactionAdd(parsedData as Transaction[])
+          }
         />
       </CardHeader>
       <CardContent>
@@ -100,14 +100,21 @@ export default function TransactionTable({
               </thead>
               <tbody>
                 {transactions.length > 0 ? (
-                  transactions?.map((row, index) => (
+                  transactions?.map((row) => (
                     <tr key={row.id} className="border-b last:border-b-0">
                       <td className="px-4 py-2">
-                        {editingIndex === index ? (
+                        {editingId === row.id ? (
                           <Input
                             type="date"
-                            value={editingTransaction?.transactionDate.split('T')[0]}
-                            onChange={(e) => handleEditChange('transactionDate', e.target.value)}
+                            value={
+                              editingTransaction?.transactionDate.split("T")[0]
+                            }
+                            onChange={(e) =>
+                              handleEditChange(
+                                "transactionDate",
+                                e.target.value
+                              )
+                            }
                             className="w-full"
                           />
                         ) : (
@@ -115,47 +122,59 @@ export default function TransactionTable({
                         )}
                       </td>
                       <td className="px-4 py-2">
-                        {editingIndex === index ? (
+                        {editingId === row.id ? (
                           <Input
                             type="text"
-                            value={editingTransaction?.merchant}
-                            onChange={(e) => handleEditChange('merchant', e.target.value)}
+                            value={editingTransaction?.merchant || ""}
+                            onChange={(e) =>
+                              handleEditChange("merchant", e.target.value)
+                            }
                             className="w-full"
                           />
                         ) : (
-                          row.merchant
+                          row.merchant || ""
                         )}
                       </td>
                       <td className="px-4 py-2">
-                        {editingIndex === index ? (
+                        {editingId === row.id ? (
                           <Input
                             type="text"
-                            value={editingTransaction?.category}
-                            onChange={(e) => handleEditChange('category', e.target.value)}
+                            value={editingTransaction?.category || ""}
+                            onChange={(e) =>
+                              handleEditChange("category", e.target.value)
+                            }
                             className="w-full"
                           />
                         ) : (
-                          row.category
+                          row.category || ""
                         )}
                       </td>
                       <td className="px-4 py-2">
-                        {editingIndex === index ? (
+                        {editingId === row.id ? (
                           <Input
                             type="text"
-                            value={editingTransaction?.description}
-                            onChange={(e) => handleEditChange('description', e.target.value)}
+                            value={editingTransaction?.description || ""}
+                            onChange={(e) =>
+                              handleEditChange("description", e.target.value)
+                            }
                             className="w-full"
                           />
                         ) : (
-                          row.description
+                          row.description || ""
                         )}
                       </td>
-                      <td className={`px-4 py-2 text-right ${row.amount < 0 ? 'text-destructive' : 'text-success'}`}>
-                        {editingIndex === index ? (
+                      <td
+                        className={`px-4 py-2 text-right ${
+                          row.amount < 0 ? "text-destructive" : "text-success"
+                        }`}
+                      >
+                        {editingId === row.id ? (
                           <Input
                             type="number"
                             value={editingTransaction?.amount}
-                            onChange={(e) => handleEditChange('amount', e.target.value)}
+                            onChange={(e) =>
+                              handleEditChange("amount", e.target.value)
+                            }
                             className="w-full text-right"
                             step="0.01"
                           />
@@ -165,12 +184,12 @@ export default function TransactionTable({
                       </td>
                       <td className="px-4 py-2 text-right">
                         <div className="flex justify-end gap-2">
-                          {editingIndex === index ? (
+                          {editingId === row.id ? (
                             <>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleEditSave(index)}
+                                onClick={() => handleEditSave(row.id)}
                               >
                                 <Check className="h-4 w-4" />
                               </Button>
@@ -187,14 +206,14 @@ export default function TransactionTable({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleEditClick(index)}
+                                onClick={() => handleEditClick(row)}
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => onDelete(index)}
+                                onClick={() => onDelete(row.id)}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>
@@ -206,7 +225,10 @@ export default function TransactionTable({
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                    <td
+                      colSpan={6}
+                      className="px-4 py-8 text-center text-muted-foreground"
+                    >
                       No transactions found.
                     </td>
                   </tr>
@@ -217,5 +239,5 @@ export default function TransactionTable({
         </div>
       </CardContent>
     </Card>
-  )
-} 
+  );
+}

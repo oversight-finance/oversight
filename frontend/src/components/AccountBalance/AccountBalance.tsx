@@ -56,8 +56,25 @@ const formatAxisDate = (date: Date, data: BalanceDataPoint[]) => {
 };
 
 export default function AccountBalance({ account }: AccountBalanceProps) {
-  const sortedTransactions = [...(account.transactions || [])].sort(
-    (a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()
+  if (!account.transactions || account.transactions.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Balance History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            No transactions available to display the graph.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const sortedTransactions = [...account.transactions].sort(
+    (a, b) =>
+      new Date(a.transactionDate).getTime() -
+      new Date(b.transactionDate).getTime()
   );
 
   let runningBalance = 0;
@@ -168,7 +185,7 @@ export default function AccountBalance({ account }: AccountBalanceProps) {
                 type="monotone"
                 dataKey="balance"
                 stroke="hsl(var(--chart-2))"
-                // fill={`url(#balanceGradient-${account.id})`}
+                fill={`url(#balanceGradient-${account.id})`}
                 fillOpacity={0.6}
               />
             </AreaChart>

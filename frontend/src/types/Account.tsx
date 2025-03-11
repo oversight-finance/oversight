@@ -19,6 +19,9 @@ export interface Account {
 export enum AccountType {
   BANK = "bank",
   INVESTMENT = "investment",
+  REAL_ESTATE = "real_estate",
+  VEHICLE = "vehicle",
+  LOAN = "loan",
   OTHER = "other",
 }
 
@@ -93,9 +96,19 @@ export interface AssetPrice {
   recordedAt: string;
 }
 
-// Helper types for managing transactions
+export interface RecurringSchedule {
+  id: string;
+  user_id: string;
+  frequency: string;
+  start_date: string;
+  end_date: string | null;
+  payment_method: string | null;
+  default_amount: number;
+  created_at: string;
+}
+
 export interface TransactionGroup {
-  groupId: string;
+  group_id: string;
   transactions: Transaction[];
   totalAmount: number;
 }
@@ -107,7 +120,7 @@ export const updateRecurringTransactions = (
   fromDate: string,
   updates: Partial<Transaction>
 ): Transaction[] => {
-  return transactions.map(transaction => {
+  return transactions.map((transaction) => {
     if (
       transaction.recurringScheduleId === recurringScheduleId &&
       new Date(transaction.transactionDate) >= new Date(fromDate)
@@ -118,6 +131,52 @@ export const updateRecurringTransactions = (
   });
 };
 
+// Use this to calculate the current balance based on transactions
+export const calculateAccountBalance = (
+  transactions: Transaction[]
+): number => {
+  return transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
+};
+
+// Helper function to create an initial transaction
+export const createInitialTransaction = (
+  amount: number
+): Omit<Transaction, "id"> => {
+  return {
+    account_id: "", // This will be set when the account is created
+    user_id: "", // This will be set when the account is created
+    transaction_date: new Date().toISOString().split("T")[0],
+    amount: amount,
+    currency: "USD",
+    merchant: "System",
+    category: "Initial Balance",
+    description: "Initial account balance",
+    metadata: null,
+    transaction_group_id: null,
+    transaction_type: "initial",
+    recurring_schedule_id: null,
+    created_at: new Date().toISOString(),
+  };
+};
+
+// Problem 1. HOW TO GROUPING TRANSACTIONS?
+// Problem 2. CONTROLLING RECURRING GROUPS OF TRANSACTIONS
+
+//Car:
+// Transactions:
+
+// Car Cash:
+// Car: Transactoin +10000 car
+// Checking: -10000
+
+// Car Finance:
+// Car: Transactions +10000 Downpayment
+// Checking: -10000
+// Recurring Checking: -500/month for the next 24 months
+// Recurring payment: +370/month for the next 24 months
+
+// Currentprice(api) - Sum Transactions
+// Price you sell - how much money you put in the car = profit/loss
 // Function types matching database functions
 export interface AccountWithBalance extends Account {
   balance: number;
