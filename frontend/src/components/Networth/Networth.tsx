@@ -209,11 +209,11 @@ export default function Networth({ data }: NetworthProps) {
       <CardContent className="p-0">
         <div className="space-y-4">
           <div className="px-6">
-            <ChartContainer config={chartConfig} className="h-[250px] w-full">
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={filteredData}
-                  margin={{ top: 5, right: 5, left: -20, bottom: 0 }}
+                  margin={{ top: 5, right: 5, left: 20, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient

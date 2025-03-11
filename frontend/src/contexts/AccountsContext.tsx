@@ -21,6 +21,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
   const addAccount = (
     newAccount: Omit<Account, "id" | "transactions" | "createdAt">
   ) => {
+    const now = new Date().toISOString();
     const initialTransaction = {
       ...createInitialTransaction(newAccount.balance),
       id: crypto.randomUUID(),
@@ -30,7 +31,8 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       ...newAccount,
       id: crypto.randomUUID(),
       transactions: [initialTransaction],
-      createdAt: new Date(),
+      createdAt: now,
+      metadata: newAccount.metadata || {},
     };
 
     setAccounts((current) => [...current, account]);

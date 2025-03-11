@@ -54,8 +54,8 @@ export default function TransactionTable({
     const updates: Partial<Transaction> = {}
 
     switch (field) {
-      case 'date':
-        updates.date = new Date(value).toISOString()
+      case 'transactionDate':
+        updates.transactionDate = new Date(value).toISOString()
         break
       case 'amount':
         updates.amount = parseFloat(value)
@@ -106,12 +106,12 @@ export default function TransactionTable({
                         {editingIndex === index ? (
                           <Input
                             type="date"
-                            value={editingTransaction?.date.split('T')[0]}
-                            onChange={(e) => handleEditChange('date', e.target.value)}
+                            value={editingTransaction?.transactionDate.split('T')[0]}
+                            onChange={(e) => handleEditChange('transactionDate', e.target.value)}
                             className="w-full"
                           />
                         ) : (
-                          new Date(row.date).toLocaleDateString()
+                          new Date(row.transactionDate).toLocaleDateString()
                         )}
                       </td>
                       <td className="px-4 py-2">
