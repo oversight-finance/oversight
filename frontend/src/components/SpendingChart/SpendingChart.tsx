@@ -62,13 +62,13 @@ export default function SpendingChart() {
   const { accounts } = useAccounts();
 
   // Get all transactions and filter out positive amounts (income)
-  const allTransactions = accounts.flatMap(account =>
-    (account.transactions || []).filter(t => t.amount < 0)
+  const allTransactions = accounts.flatMap((account) =>
+    (account.transactions || []).filter((t) => t.amount < 0)
   );
 
   // Group transactions by category and calculate total spending
   const spendingByCategory = allTransactions.reduce((acc, transaction) => {
-    const category = transaction.category || 'Uncategorized';
+    const category = transaction.category || "Uncategorized";
     acc[category] = (acc[category] || 0) + Math.abs(transaction.amount);
     return acc;
   }, {} as Record<string, number>);

@@ -10,4 +10,4 @@ export default function StockDetails({ asset }: StockDetailsProps) {
       <p className="text-muted-foreground">Stock details coming soon</p>
     </div>
   );
-} 
+}

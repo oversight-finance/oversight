@@ -1,5 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
-import { User, Session } from "@supabase/supabase-js";
+import { Session, User as SupabaseUser } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import {
   createContext,
@@ -8,23 +8,23 @@ import {
   useEffect,
   ReactNode,
 } from "react";
+import { createUser, getCurrentUserWithProfile } from "@/database/Users";
+import { UserProfile, UserMetadata, CreateUserData } from "@/types/User";
 
-type UserProfile = {
-  first_name: string | null;
-  last_name: string | null;
+// Export database functions directly so components can use them
+export type { UserProfile, UserMetadata, CreateUserData } from "@/types/User";
+export * from "@/database/Users";
+
+// Combined user type that merges Supabase User with our UserProfile
+export type AuthUser = SupabaseUser & {
+  profile?: UserProfile | null;
 };
 
 type AuthState = {
-  user: User | null;
+  user: AuthUser | null;
   session: Session | null;
   isLoading: boolean;
   userProfile: UserProfile | null;
-};
-
-type UserMetadata = {
-  firstName?: string;
-  lastName?: string;
-  [key: string]: unknown;
 };
 
 type AuthContextType = AuthState & {
@@ -35,6 +35,7 @@ type AuthContextType = AuthState & {
   ) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUserProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -49,125 +50,78 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const supabase = createClient();
 
-  // Fetch user profile from public.users table
-  const fetchUserProfile = async (userId: string) => {
-    if (!userId) {
-      console.error("No user ID provided to fetchUserProfile");
-      return null;
-    }
-
+  // Refresh the user profile from the database
+  const refreshUserProfile = async () => {
     try {
-      console.log(`Fetching profile for user ${userId}`);
+      // Use the utility function to get user with profile in one call
+      const { authUser, profile } = await getCurrentUserWithProfile();
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("first_name, last_name")
-        .eq("id", userId)
-        .single();
-
-      if (error) {
-        console.error("Error fetching user profile:", error.message);
-        console.error("Error details:", error);
-
-        // Check if user exists in the users table
-        const { count, error: countError } = await supabase
-          .from("users")
-          .select("*", { count: "exact", head: true })
-          .eq("id", userId);
-
-        if (countError) {
-          console.error("Error checking if user exists:", countError);
-        } else {
-          // This expression checks if the user exists in the users table
-          // If count is truthy (not null/undefined) and greater than 0, the user exists
-          // Otherwise, the user doesn't exist
-          const userExists = count && count > 0;
-          console.log(
-            `User exists in users table: ${userExists ? "YES" : "NO"}`
-          );
-        }
-
-        return null;
+      if (authUser) {
+        setAuthState((current) => ({
+          ...current,
+          user: { ...authUser, profile },
+          userProfile: profile,
+        }));
       }
-
-      console.log("Successfully fetched user profile:", data);
-      return data as UserProfile;
     } catch (error) {
-      console.error("Exception fetching user profile:", error);
-      return null;
+      console.error("Error refreshing user profile:", error);
     }
   };
 
   // Initialize the auth state
   useEffect(() => {
     const initializeAuth = async () => {
-      // Use getUser() instead of getSession() for proper JWT validation
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
+      try {
+        // Use getCurrentUserWithProfile to get both auth user and profile in one call
+        const { authUser, profile } = await getCurrentUserWithProfile();
 
-      if (error) {
-        console.error("Error validating user session:", error);
+        // Get the session for backward compatibility
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        setAuthState({
+          user: authUser ? { ...authUser, profile } : null,
+          session: session,
+          isLoading: false,
+          userProfile: profile,
+        });
+
+        // Listen for auth changes
+        const {
+          data: { subscription },
+        } = supabase.auth.onAuthStateChange(async (event, session) => {
+          // For auth changes, get user with profile in one call
+          const { authUser, profile } = await getCurrentUserWithProfile();
+
+          setAuthState({
+            user: authUser ? { ...authUser, profile } : null,
+            session: session,
+            isLoading: false,
+            userProfile: profile,
+          });
+
+          if (event === "SIGNED_IN") {
+            router.refresh();
+          }
+          if (event === "SIGNED_OUT") {
+            router.refresh();
+            router.push("/auth/login");
+          }
+        });
+
+        return () => {
+          subscription.unsubscribe();
+        };
+      } catch (error) {
+        console.error("Error initializing auth:", error);
         setAuthState({
           user: null,
           session: null,
           isLoading: false,
           userProfile: null,
         });
-        return;
       }
-
-      let profile = null;
-      if (user) {
-        profile = await fetchUserProfile(user.id);
-      }
-
-      // Get the session after validating user for backward compatibility
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      setAuthState({
-        user: user,
-        session: session,
-        isLoading: false,
-        userProfile: profile,
-      });
-
-      // Listen for auth changes
-      const {
-        data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (event, session) => {
-        // For auth changes, directly get and validate the user
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        let profile = null;
-        if (user) {
-          profile = await fetchUserProfile(user.id);
-        }
-
-        setAuthState({
-          user: user,
-          session: session,
-          isLoading: false,
-          userProfile: profile,
-        });
-
-        if (event === "SIGNED_IN") {
-          router.refresh();
-        }
-        if (event === "SIGNED_OUT") {
-          router.refresh();
-          router.push("/auth/login");
-        }
-      });
-
-      return () => {
-        subscription.unsubscribe();
-      };
     };
 
     initializeAuth();
@@ -196,22 +150,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // If sign up successful and user exists, insert into public.users table
       if (data.user) {
-        // Insert the user info into public.users table
-        const { error: insertError } = await supabase.from("users").insert([
-          {
-            id: data.user.id,
-            email: email,
-            first_name: metadata?.firstName || "",
-            last_name: metadata?.lastName || "",
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        ]);
+        // Create a properly typed user object for the database
+        const userData: CreateUserData = {
+          id: data.user.id,
+          email: email,
+          first_name: metadata?.firstName || "",
+          last_name: metadata?.lastName || "",
+        };
 
-        if (insertError) {
-          console.error("Error inserting user data:", insertError);
-          // Consider what to do if auth succeeds but user table insert fails
-          // For now, we'll just log it but still consider signup successful
+        // Use the utility function to create user
+        const success = await createUser(userData);
+
+        if (!success) {
+          console.error("Error inserting user data");
         }
       }
     } catch (error: unknown) {
@@ -229,6 +180,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         password,
       });
       if (error) throw error;
+
+      // After sign in, refresh the user profile
+      await refreshUserProfile();
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Error during sign in";
@@ -253,6 +207,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signUp,
     signIn,
     signOut,
+    refreshUserProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

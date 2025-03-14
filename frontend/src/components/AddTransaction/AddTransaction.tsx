@@ -363,7 +363,7 @@ function generateRecurringTransactions(
       id: crypto.randomUUID(),
       transactionDate: currentDate.toISOString(),
       recurringScheduleId: recurringScheduleId,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     };
 
     transactions.push(newTransaction);

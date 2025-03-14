@@ -2,106 +2,198 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import TransactionTable from "@/components/TransactionTable/TransactionTable";
-import { useAccounts } from "@/contexts/AccountsContext";
+import { DataTable, ColumnDef } from "@/components/DataTable/DataTable";
+import {
+  useAccounts,
+  createTransaction,
+  deleteTransaction as deleteTx,
+  updateTransaction as updateTx,
+} from "@/contexts/AccountsContext";
 import AccountBalance from "@/components/AccountBalance/AccountBalance";
 import { formatCurrency } from "@/lib/utils";
-import { Transaction, TransactionType } from "@/types/Account";
+import {
+  UITransaction,
+  toUITransactions,
+  toDatabaseTransaction,
+} from "@/types/Transaction";
 
-const sortTransactionsByDate = (transactions: Transaction[]): Transaction[] => {
-  return [...transactions].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-  );
+// Helper to calculate account balance from transactions
+const calculateAccountBalance = (transactions: UITransaction[]): number => {
+  return transactions.reduce((sum, tx) => sum + tx.amount, 0);
 };
 
 export default function AccountPage() {
   const { id } = useParams();
-  const {
-    accounts,
-    fetchAccountTransactions,
-    addTransaction,
-    updateTransaction,
-    deleteTransaction,
-    isLoading,
-    error,
-  } = useAccounts();
+  const { accounts, refreshAccounts, getTransactions, isLoading, error } =
+    useAccounts();
 
   const account = accounts.find((a) => a.id === id);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [transactions, setTransactions] = useState<UITransaction[]>([]);
+  const [pageLoading, setPageLoading] = useState(true);
+
+  // Define table columns for transactions with better configuration for editing
+  const columns: ColumnDef<UITransaction>[] = [
+    {
+      accessorKey: "date",
+      header: "Date",
+      type: "date",
+      editable: true,
+    },
+    {
+      accessorKey: "merchant",
+      header: "Merchant",
+      type: "text",
+      editable: true,
+    },
+    {
+      accessorKey: "category",
+      header: "Category",
+      type: "text",
+      editable: true,
+    },
+    {
+      accessorKey: "description",
+      header: "Description",
+      type: "text",
+      editable: true,
+    },
+    {
+      accessorKey: "amount",
+      header: "Amount",
+      type: "currency",
+      align: "right",
+      editable: true,
+      // Custom cell renderer for highlighting positive/negative values
+      cell: (value) => {
+        if (typeof value !== "number") return formatCurrency(0);
+        return (
+          <span className={value < 0 ? "text-destructive" : "text-success"}>
+            {formatCurrency(value)}
+          </span>
+        );
+      },
+    },
+  ];
 
   // Fetch transactions when the account ID changes
   useEffect(() => {
-    if (account) {
-      setTransactions(account.transactions);
-    }
-  }, [account]);
-
-  const handleDataUpdate = (data: Transaction[]) => {
-    const newTransactions: Transaction[] = data.map((item) => ({
-      id: crypto.randomUUID(),
-      date: item.date,
-      amount: item.amount,
-      currency: "USD",
-      merchant: item.merchant || "Unknown",
-      category: item.category || "Uncategorized",
-      description: item.description || "",
-      transactionType: TransactionType.EXTERNAL,
-    }));
-
-    const updatedTransactions = sortTransactionsByDate([
-      ...transactions,
-      ...newTransactions,
-    ]);
-    updateTransactions(updatedTransactions);
-  };
-
-  const handleTransactionAdd = async (newTransactions: Transaction[]) => {
-    try {
-      // Add each transaction to the database
-      for (const transaction of newTransactions) {
-        // Extract id and created_at to avoid sending them to the API
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { id, created_at, ...newTransaction } = transaction;
-        await addTransaction(newTransaction);
+    const loadTransactions = async () => {
+      if (account) {
+        try {
+          setPageLoading(true);
+          // Fetch transactions from DB and convert to UI format
+          const accountTxs = await getTransactions(account.id);
+          setTransactions(toUITransactions(accountTxs));
+        } catch (err) {
+          console.error("Failed to load transactions:", err);
+        } finally {
+          setPageLoading(false);
+        }
       }
+    };
+
+    loadTransactions();
+  }, [account, getTransactions]);
+
+  // Handle adding a new transaction
+  const handleTransactionAdd = async (newTransaction: UITransaction) => {
+    try {
+      // Ensure the transaction has required fields with defaults
+      const transaction: UITransaction = {
+        id: crypto.randomUUID(),
+        account_id: id as string,
+        date: new Date().toISOString(),
+        amount: 0,
+        currency: "USD",
+        merchant: "",
+        category: "",
+        description: "",
+      };
+
+      // Apply the provided values (will override defaults)
+      const completeTransaction = {
+        ...transaction,
+        ...newTransaction,
+      };
+
+      // Convert UI transaction to database format
+      const dbTransaction = toDatabaseTransaction(completeTransaction);
+
+      // Create transaction in the database
+      await createTransaction({
+        ...dbTransaction,
+        account_id: id as string,
+      });
 
       // Refresh transactions
-      const fetchedTransactions = await fetchAccountTransactions(id as string);
-      setTransactions(fetchedTransactions);
+      const updatedTxs = await getTransactions(id as string);
+      setTransactions(toUITransactions(updatedTxs));
+
+      // Also refresh account data to update balances
+      await refreshAccounts();
     } catch (error) {
-      console.error("Error adding transactions:", error);
+      console.error("Error adding transaction:", error);
     }
   };
 
-  const handleTransactionDelete = async (transactionId: string) => {
+  // Handle deleting a transaction
+  const handleTransactionDelete = async (transaction: UITransaction) => {
+    if (!confirm("Are you sure you want to delete this transaction?")) return;
+
     try {
-      await deleteTransaction(transactionId);
+      await deleteTx(transaction.id);
 
       // Refresh transactions
-      const fetchedTransactions = await fetchAccountTransactions(id as string);
-      setTransactions(fetchedTransactions);
+      const updatedTxs = await getTransactions(id as string);
+      setTransactions(toUITransactions(updatedTxs));
+
+      // Also refresh account data to update balances
+      await refreshAccounts();
     } catch (error) {
       console.error("Error deleting transaction:", error);
     }
   };
 
+  // Handle editing a transaction
   const handleTransactionEdit = async (
-    transactionId: string,
-    updatedTransaction: Partial<Transaction>
+    original: UITransaction,
+    updates: Partial<UITransaction>
   ) => {
     try {
-      await updateTransaction(transactionId, updatedTransaction);
+      // Map UI field names to database field names
+      const dbUpdates: Record<string, string | number> = {};
+
+      // Map UI fields to database fields
+      if (updates.date) {
+        dbUpdates.transaction_date = updates.date;
+      }
+      if (updates.amount !== undefined) {
+        dbUpdates.amount = updates.amount;
+      }
+      if (updates.merchant !== undefined) {
+        dbUpdates.merchant = updates.merchant;
+      }
+      if (updates.category !== undefined) {
+        dbUpdates.category = updates.category;
+      }
+      if (updates.description !== undefined) {
+        dbUpdates.description = updates.description;
+      }
+
+      await updateTx(original.id, dbUpdates);
 
       // Refresh transactions
-      const fetchedTransactions = await fetchAccountTransactions(id as string);
-      setTransactions(fetchedTransactions);
+      const updatedTxs = await getTransactions(id as string);
+      setTransactions(toUITransactions(updatedTxs));
+
+      // Also refresh account data to update balances
+      await refreshAccounts();
     } catch (error) {
       console.error("Error updating transaction:", error);
     }
-};
+  };
 
-  if (isLoading || loading) return <div>Loading...</div>;
+  if (isLoading || pageLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
   if (!account) return <div>Account not found</div>;
 
@@ -111,8 +203,8 @@ export default function AccountPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          {/* <h1 className="text-2xl font-bold">{account.name}</h1>
-          <p className="text-muted-foreground">{account.description}</p> */}
+          <h1 className="text-2xl font-bold">Account {account.id}</h1>
+          <p className="text-muted-foreground">Manage your transactions</p>
         </div>
         <div className="text-right">
           <div className="text-2xl font-bold">
@@ -128,15 +220,30 @@ export default function AccountPage() {
 
       <div className="flex flex-col xl:flex-row gap-4 md:gap-6">
         <div className="flex-1 min-w-0">
-          <TransactionTable
-            transactions={transactions}
+          <DataTable
+            data={transactions}
+            columns={columns}
+            title="Transactions"
             onDelete={handleTransactionDelete}
             onEdit={handleTransactionEdit}
-            onTransactionAdd={handleTransactionAdd}
+            onAdd={handleTransactionAdd}
+            emptyMessage="No transactions found for this account."
+            showActions={true}
           />
         </div>
         <div className="w-full xl:w-80 shrink-0">
-          <CSVUploader onDataUpdate={handleDataUpdate} />
+          <div className="p-4 border rounded-md">
+            <h3 className="font-medium mb-2">Import Transactions</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Upload a CSV file to import your transactions
+            </p>
+            <button
+              className="w-full py-2 px-4 bg-primary text-primary-foreground rounded-md"
+              onClick={() => alert("CSV Uploader not implemented yet")}
+            >
+              Upload CSV
+            </button>
+          </div>
         </div>
       </div>
     </div>

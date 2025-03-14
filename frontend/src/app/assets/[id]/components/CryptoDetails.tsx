@@ -7,7 +7,9 @@ interface CryptoDetailsProps {
 export default function CryptoDetails({ asset }: CryptoDetailsProps) {
   return (
     <div className="flex items-center justify-center h-[300px]">
-      <p className="text-muted-foreground">Cryptocurrency details coming soon</p>
+      <p className="text-muted-foreground">
+        Cryptocurrency details coming soon
+      </p>
     </div>
   );
-} 
+}

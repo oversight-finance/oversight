@@ -5,84 +5,209 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Pencil, Trash2, X, Check } from "lucide-react";
-import { Transaction } from "@/types/Account";
+import { UITransaction } from "@/types/Transaction";
 import AddTransaction from "@/components/AddTransaction/AddTransaction";
 import { formatCurrency } from "@/lib/utils";
 
-interface TransactionTableProps {
-  transactions: Transaction[];
-  onDelete: (transactionId: string) => void;
-  onEdit: (transactionId: string, transaction: Partial<Transaction>) => void;
-  onTransactionAdd: (transactions: Transaction[]) => void;
+/**
+ * Configuration for a table column
+ */
+export interface ColumnConfig {
+  key: keyof UITransaction; // Property name in the transaction object
+  label: string; // Display label
+  type?: "text" | "date" | "currency"; // Format type
+  width?: string; // Optional width specification
+  align?: "left" | "right" | "center"; // Text alignment
 }
+
+interface TransactionTableProps {
+  transactions: UITransaction[];
+  onDelete?: (transactionId: string) => void;
+  onTransactionAdd?: (transactions: UITransaction[]) => void;
+  accountType?: string; // Type of account: 'bank', 'investment', 'credit', etc.
+  columns?: ColumnConfig[]; // Custom column configuration
+  title?: string; // Optional custom title for the card
+}
+
+// Helper to format cell value based on type
+const formatCellValue = (value: unknown, type?: string): string => {
+  if (value === null || value === undefined) return "";
+
+  switch (type) {
+    case "date":
+      return typeof value === "string"
+        ? new Date(value).toLocaleDateString()
+        : String(value);
+    case "currency":
+      return typeof value === "number" ? formatCurrency(value) : String(value);
+    default:
+      return String(value);
+  }
+};
+
+// Generate default columns based on transaction type
+const generateColumnsFromType = (
+  transaction?: UITransaction
+): ColumnConfig[] => {
+  // Default columns with common fields that should always be included
+  const defaultColumns: ColumnConfig[] = [
+    { key: "date", label: "Date", type: "date", align: "left" },
+    { key: "amount", label: "Amount", type: "currency", align: "right" },
+  ];
+
+  // If no sample transaction provided, return default columns
+  if (!transaction) return defaultColumns;
+
+  // Generate additional columns from the transaction object
+  const additionalColumns: ColumnConfig[] = [];
+
+  // Add columns based on non-empty fields in the transaction
+  if (transaction.merchant !== undefined) {
+    additionalColumns.push({
+      key: "merchant",
+      label: "Merchant",
+      type: "text",
+      align: "left",
+    });
+  }
+
+  if (transaction.category !== undefined) {
+    additionalColumns.push({
+      key: "category",
+      label: "Category",
+      type: "text",
+      align: "left",
+    });
+  }
+
+  if (transaction.description !== undefined) {
+    additionalColumns.push({
+      key: "description",
+      label: "Description",
+      type: "text",
+      align: "left",
+    });
+  }
+
+  if (transaction.currency !== undefined) {
+    additionalColumns.push({
+      key: "currency",
+      label: "Currency",
+      type: "text",
+      align: "left",
+    });
+  }
+
+  // Merge and order the columns (date first, amount last, others in between)
+  return [
+    defaultColumns[0], // date
+    ...additionalColumns,
+    defaultColumns[1], // amount
+  ];
+};
 
 export default function TransactionTable({
   transactions,
   onDelete,
-  onEdit,
   onTransactionAdd,
+  columns,
+  title = "Transactions",
 }: TransactionTableProps) {
+  // State for editing (placeholders for now)
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTransaction, setEditingTransaction] =
-    useState<Transaction | null>(null);
+    useState<UITransaction | null>(null);
 
-  const handleEditClick = (transaction: Transaction) => {
+  // Use provided columns or generate from transaction data
+  const tableColumns =
+    columns ||
+    (transactions.length > 0 ? generateColumnsFromType(transactions[0]) : []);
+
+  // Placeholder edit functions - to be implemented later
+  const handleEditStart = (transaction: UITransaction) => {
     setEditingId(transaction.id);
     setEditingTransaction({ ...transaction });
+    // This is just a UI placeholder for now
+    console.log("Edit started for transaction:", transaction.id);
   };
 
   const handleEditCancel = () => {
     setEditingId(null);
     setEditingTransaction(null);
+    console.log("Edit cancelled");
   };
 
   const handleEditSave = (transactionId: string) => {
-    if (editingTransaction) {
-      // Only send modified fields to avoid unnecessary updates
-      const { id, createdAt, ...restTransaction } = editingTransaction;
-      onEdit(transactionId, restTransaction);
-      setEditingId(null);
-      setEditingTransaction(null);
-    }
+    // Placeholder - will implement actual saving logic later
+    console.log(
+      "Edit saved for transaction:",
+      transactionId,
+      editingTransaction
+    );
+    setEditingId(null);
+    setEditingTransaction(null);
   };
 
-  const handleEditChange = (field: keyof Transaction, value: string) => {
-    if (!editingTransaction) return;
+  // Render cell content based on edit state
+  const renderCell = (transaction: UITransaction, column: ColumnConfig) => {
+    const isEditing = editingId === transaction.id;
+    const key = column.key;
+    const value = transaction[key];
 
-    const updates: Partial<Transaction> = {};
-
-    switch (field) {
-      case "transactionDate":
-        updates.transactionDate = new Date(value).toISOString();
-        break;
-      case "amount":
-        updates.amount = parseFloat(value);
-        break;
-      case "merchant":
-        updates.merchant = value;
-        break;
-      case "category":
-        updates.category = value;
-        break;
-      case "description":
-        updates.description = value;
-        break;
-      default:
-        return;
+    // When in edit mode, show input fields (non-functional placeholders for now)
+    if (isEditing) {
+      switch (column.type) {
+        case "date":
+          const dateValue =
+            typeof value === "string" ? value.split("T")[0] : "";
+          return (
+            <Input
+              type="date"
+              value={dateValue}
+              onChange={() => {}} // Placeholder - no functionality yet
+              className="w-full"
+              disabled
+            />
+          );
+        case "currency":
+          return (
+            <Input
+              type="number"
+              value={value as number}
+              onChange={() => {}} // Placeholder - no functionality yet
+              className="w-full text-right"
+              step="0.01"
+              disabled
+            />
+          );
+        default:
+          return (
+            <Input
+              type="text"
+              value={String(value || "")}
+              onChange={() => {}} // Placeholder - no functionality yet
+              className="w-full"
+              disabled
+            />
+          );
+      }
     }
 
-    setEditingTransaction({ ...editingTransaction, ...updates });
+    // Display mode - use the formatCellValue helper
+    return formatCellValue(value, column.type);
   };
 
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Transactions</CardTitle>
-        <AddTransaction
-          onTransactionAdd={(parsedData) =>
-            onTransactionAdd(parsedData as Transaction[])
-          }
-        />
+        <CardTitle>{title}</CardTitle>
+        {onTransactionAdd && (
+          <AddTransaction
+            onTransactionAdd={(parsedData) =>
+              onTransactionAdd(parsedData as UITransaction[])
+            }
+          />
+        )}
       </CardHeader>
       <CardContent>
         <div className="border rounded-lg">
@@ -90,98 +215,47 @@ export default function TransactionTable({
             <table className="w-full">
               <thead className="sticky top-0 bg-background border-b">
                 <tr>
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Merchant</th>
-                  <th className="px-4 py-2 text-left">Category</th>
-                  <th className="px-4 py-2 text-left">Description</th>
-                  <th className="px-4 py-2 text-right">Amount</th>
-                  <th className="px-4 py-2 text-right">Actions</th>
+                  {tableColumns.map((column, index) => (
+                    <th
+                      key={index}
+                      className={`px-4 py-2 text-${column.align || "left"}`}
+                      style={{ width: column.width }}
+                    >
+                      {column.label}
+                    </th>
+                  ))}
+                  <th className="px-4 py-2 text-right w-24">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.length > 0 ? (
-                  transactions?.map((row) => (
-                    <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-2">
-                        {editingId === row.id ? (
-                          <Input
-                            type="date"
-                            value={
-                              editingTransaction?.transactionDate.split("T")[0]
-                            }
-                            onChange={(e) =>
-                              handleEditChange(
-                                "transactionDate",
-                                e.target.value
-                              )
-                            }
-                            className="w-full"
-                          />
-                        ) : (
-                          new Date(row.transactionDate).toLocaleDateString()
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        {editingId === row.id ? (
-                          <Input
-                            type="text"
-                            value={editingTransaction?.merchant || ""}
-                            onChange={(e) =>
-                              handleEditChange("merchant", e.target.value)
-                            }
-                            className="w-full"
-                          />
-                        ) : (
-                          row.merchant || ""
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        {editingId === row.id ? (
-                          <Input
-                            type="text"
-                            value={editingTransaction?.category || ""}
-                            onChange={(e) =>
-                              handleEditChange("category", e.target.value)
-                            }
-                            className="w-full"
-                          />
-                        ) : (
-                          row.category || ""
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        {editingId === row.id ? (
-                          <Input
-                            type="text"
-                            value={editingTransaction?.description || ""}
-                            onChange={(e) =>
-                              handleEditChange("description", e.target.value)
-                            }
-                            className="w-full"
-                          />
-                        ) : (
-                          row.description || ""
-                        )}
-                      </td>
-                      <td
-                        className={`px-4 py-2 text-right ${
-                          row.amount < 0 ? "text-destructive" : "text-success"
-                        }`}
-                      >
-                        {editingId === row.id ? (
-                          <Input
-                            type="number"
-                            value={editingTransaction?.amount}
-                            onChange={(e) =>
-                              handleEditChange("amount", e.target.value)
-                            }
-                            className="w-full text-right"
-                            step="0.01"
-                          />
-                        ) : (
-                          formatCurrency(row.amount)
-                        )}
-                      </td>
+                  transactions.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b last:border-b-0 hover:bg-muted/50"
+                    >
+                      {tableColumns.map((column, index) => {
+                        const key = column.key;
+                        const value = row[key];
+                        const isAmountColumn = key === "amount";
+
+                        return (
+                          <td
+                            key={index}
+                            className={`px-4 py-2 ${
+                              column.align ? `text-${column.align}` : ""
+                            } ${
+                              isAmountColumn && (value as number) < 0
+                                ? "text-destructive"
+                                : isAmountColumn && (value as number) > 0
+                                ? "text-success"
+                                : ""
+                            }`}
+                          >
+                            {renderCell(row, column)}
+                          </td>
+                        );
+                      })}
                       <td className="px-4 py-2 text-right">
                         <div className="flex justify-end gap-2">
                           {editingId === row.id ? (
@@ -190,6 +264,8 @@ export default function TransactionTable({
                                 variant="ghost"
                                 size="icon"
                                 onClick={() => handleEditSave(row.id)}
+                                className="h-8 w-8"
+                                title="Save changes"
                               >
                                 <Check className="h-4 w-4" />
                               </Button>
@@ -197,6 +273,8 @@ export default function TransactionTable({
                                 variant="ghost"
                                 size="icon"
                                 onClick={handleEditCancel}
+                                className="h-8 w-8"
+                                title="Cancel editing"
                               >
                                 <X className="h-4 w-4" />
                               </Button>
@@ -206,17 +284,23 @@ export default function TransactionTable({
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => handleEditClick(row)}
+                                onClick={() => handleEditStart(row)}
+                                className="h-8 w-8"
+                                title="Edit transaction"
                               >
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => onDelete(row.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                              {onDelete && (
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => onDelete(row.id)}
+                                  className="h-8 w-8"
+                                  title="Delete transaction"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
                             </>
                           )}
                         </div>
@@ -226,7 +310,7 @@ export default function TransactionTable({
                 ) : (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={tableColumns.length + 1}
                       className="px-4 py-8 text-center text-muted-foreground"
                     >
                       No transactions found.
