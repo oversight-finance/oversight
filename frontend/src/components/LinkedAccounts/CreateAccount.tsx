@@ -1,11 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAccounts } from "@/contexts/AccountsContext";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/utils";
 import {
   Select,
@@ -23,15 +18,17 @@ import BankForm from "./BankForm";
 const formatAccountType = (type: AccountType): string => {
   // Split camelCase and capitalize first letter of each word
   return type
-    .replace(/([A-Z])/g, ' $1') // Add space before capital letters
-    .replace(/^./, str => str.toUpperCase()); // Capitalize first letter
+    .replace(/([A-Z])/g, " $1") // Add space before capital letters
+    .replace(/^./, (str) => str.toUpperCase()); // Capitalize first letter
 };
 
 interface CreateAccountProps {
   defaultType?: AccountType;
 }
 
-export default function CreateAccount({ defaultType = AccountType.BANK }: CreateAccountProps) {
+export default function CreateAccount({
+  defaultType = AccountType.BANK,
+}: CreateAccountProps) {
   const [showFullForm, setShowFullForm] = useState(false);
   const [selectedType, setSelectedType] = useState<AccountType>(defaultType);
   const [formData, setFormData] = useState({
@@ -75,10 +72,7 @@ export default function CreateAccount({ defaultType = AccountType.BANK }: Create
                 ))}
               </SelectContent>
             </Select>
-            <Button
-              className="w-full"
-              onClick={() => setShowFullForm(true)}
-            >
+            <Button className="w-full" onClick={() => setShowFullForm(true)}>
               Next
             </Button>
           </div>
@@ -111,8 +105,8 @@ export default function CreateAccount({ defaultType = AccountType.BANK }: Create
         {selectedType !== AccountType.BANK && (
           <div className="p-4 text-center text-muted-foreground">
             <p>This account type is not yet implemented.</p>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               className="mt-4"
               onClick={() => setShowFullForm(false)}
             >

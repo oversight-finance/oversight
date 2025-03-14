@@ -5,20 +5,24 @@ import { useRouter } from "next/navigation";
 import { useAssets } from "@/contexts/AssetsContext";
 import { Asset, AssetType } from "@/types/Account";
 import { Button } from "@/components/ui/button";
-import { 
-  VehicleDetails, 
-  RealEstateDetails, 
-  StockDetails, 
-  CryptoDetails 
+import {
+  VehicleDetails,
+  RealEstateDetails,
+  StockDetails,
+  CryptoDetails,
 } from "./components";
 
-export default function AssetDetailsPage({ params }: { params: { id: string } }) {
+export default function AssetDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const { assets } = useAssets();
   const [asset, setAsset] = useState<Asset | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    const foundAsset = assets.find(a => a.id === params.id);
+    const foundAsset = assets.find((a) => a.id === params.id);
     if (foundAsset) {
       setAsset(foundAsset);
     }
@@ -48,7 +52,9 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
       default:
         return (
           <div className="flex items-center justify-center h-[300px]">
-            <p className="text-muted-foreground">Details not available for this asset type</p>
+            <p className="text-muted-foreground">
+              Details not available for this asset type
+            </p>
           </div>
         );
     }
@@ -57,8 +63,8 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
   return (
     <div className="container py-6">
       <div className="mb-6">
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={() => router.push("/dashboard")}
           className="mb-4"
         >
@@ -66,8 +72,8 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
         </Button>
         <h1 className="text-2xl font-bold">{asset.name}</h1>
       </div>
-      
+
       {renderAssetDetails()}
     </div>
   );
-} 
+}

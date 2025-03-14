@@ -1,0 +1,143 @@
+-- Users Table
+-- This table holds additional user information and references auth.users.
+CREATE TABLE IF NOT EXISTS public.users (
+  id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  first_name text,
+  last_name text,
+  PRIMARY KEY (id)
+);
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+
+-- RLS policy for users table - only allow users to view and edit their own data
+CREATE POLICY users_policy
+  ON public.users
+  FOR ALL
+  USING (id = auth.uid())
+  WITH CHECK (id = auth.uid());
+
+CREATE TYPE account_type AS ENUM ('bank', 'crypto', 'credit', 'savings', 'stock', 'real_estate', 'vehicle');
+-- Accounts Tables
+-- Represents financial accounts for each user.
+CREATE TABLE IF NOT EXISTS public.accounts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  account_type account_type NOT NULL,
+  balance numeric(12, 2) NOT NULL,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
+
+-- RLS policy for accounts table - only allow users to view and edit their own accounts
+CREATE POLICY accounts_policy
+  ON public.accounts
+  FOR ALL
+  USING (user_id = auth.uid())
+  WITH CHECK (user_id = auth.uid());
+
+-- Bank Accounts Table
+-- Represents financial bank accounts for each user.
+CREATE TABLE IF NOT EXISTS public.bank_accounts (
+  account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+  account_name text NOT NULL,
+  institution_name text NOT NULL,
+  account_number text NOT NULL,
+  routing_number text NOT NULL,
+  currency text NOT NULL,
+  balance numeric(12, 2) NOT NULL,
+  PRIMARY KEY (account_id)
+);
+ALTER TABLE public.bank_accounts ENABLE ROW LEVEL SECURITY;
+
+-- RLS policy for bank_accounts table - only allow users to view and edit bank accounts 
+-- linked to accounts they own
+CREATE POLICY bank_accounts_policy
+  ON public.bank_accounts
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE accounts.id = bank_accounts.account_id
+      AND accounts.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE accounts.id = bank_accounts.account_id
+      AND accounts.user_id = auth.uid()
+    )
+  );
+
+-- Bank Accounts Transactions Table
+-- Represents financial bank accounts transactions for each user.
+CREATE TABLE IF NOT EXISTS public.bank_accounts_transactions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(), 
+  account_id uuid NOT NULL REFERENCES public.bank_accounts(account_id) ON DELETE CASCADE,
+  transaction_date timestamptz DEFAULT now() NOT NULL,
+  amount numeric(12, 2) NOT NULL,
+  merchant text,
+  category text,
+  FOREIGN KEY (account_id) REFERENCES public.bank_accounts(account_id) ON DELETE CASCADE
+);
+
+ALTER TABLE public.bank_accounts_transactions ENABLE ROW LEVEL SECURITY;
+-- Row Level Security Policy for bank_accounts_transactions
+-- Only allow users to read transactions for accounts they own
+CREATE POLICY bank_accounts_transactions_all_operations_policy
+  ON public.bank_accounts_transactions
+  FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE accounts.id = bank_accounts_transactions.account_id
+      AND accounts.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.accounts
+      WHERE accounts.id = bank_accounts_transactions.account_id
+      AND accounts.user_id = auth.uid()
+    )
+  );
+
+-- Assets Table
+-- Stores user-held asset information such as crypto, stocks, real estate, or vehicles.
+CREATE TABLE IF NOT EXISTS public.assets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  type text NOT NULL,
+  -- e.g., 'crypto', 'stock', 'real_estate', 'vehicle'
+  name text NOT NULL,
+  purchase_value numeric(12, 2),
+  current_value numeric(12, 2),
+  purchase_date date,
+  metadata jsonb,
+  created_at timestamptz DEFAULT now()
+);
+-- Asset Prices Table
+-- Captures historical pricing data for assets.
+CREATE TABLE IF NOT EXISTS public.asset_prices (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  asset_id uuid REFERENCES public.assets(id) ON DELETE CASCADE,
+  price_date date NOT NULL,
+  price numeric(12, 2) NOT NULL,
+  recorded_at timestamptz DEFAULT now()
+);
+
+-- Recurring Schedules Table
+-- Defines recurring transaction details (frequency, start/end dates, default amount, etc.)
+CREATE TABLE IF NOT EXISTS public.recurring_schedules (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  frequency text NOT NULL,
+  -- e.g., 'weekly', 'monthly'
+  start_date date NOT NULL,
+  end_date date,
+  -- When set, indicates the schedule is no longer active.
+  payment_method text,
+  default_amount numeric(12, 2) NOT NULL,
+  -- Default recurring amount.
+  created_at timestamptz DEFAULT now()
+);

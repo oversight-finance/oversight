@@ -3,42 +3,31 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 
-interface NavBarProps {
-  isSidebarOpen?: boolean;
-}
+export function NavBar() {
+  const { user, userProfile, signOut, isLoading } = useAuth();
+  const [displayName, setDisplayName] = useState<string>("User");
 
-export function NavBar({ isSidebarOpen }: NavBarProps) {
-  const { user, signOut, isLoading } = useAuth();
-  const [isLargeScreen, setIsLargeScreen] = useState(false);
-
-  // Handle screen size detection
+  // Update display name when user or profile changes
   useEffect(() => {
-    // Check if we're in a browser environment
-    if (typeof window === "undefined") return;
-
-    const checkScreenSize = () => {
-      setIsLargeScreen(window.innerWidth > 768);
-    };
-
-    // Set initial value
-    checkScreenSize();
-
-    // Add event listener
-    window.addEventListener("resize", checkScreenSize);
-
-    // Clean up
-    return () => window.removeEventListener("resize", checkScreenSize);
-  }, []);
-
-  // Determine if we should add padding based on sidebar state and screen size
-  const shouldAddPadding = isSidebarOpen && isLargeScreen;
+    if (userProfile?.first_name && userProfile?.last_name) {
+      setDisplayName(`${userProfile.first_name} ${userProfile.last_name}`);
+    } else if (userProfile?.first_name) {
+      setDisplayName(userProfile.first_name);
+    } else if (userProfile?.last_name) {
+      setDisplayName(userProfile.last_name);
+    } else if (user?.email) {
+      setDisplayName(user.email.split("@")[0]);
+    } else {
+      setDisplayName("User");
+    }
+  }, [user, userProfile]);
 
   return (
     <header className="w-full bg-white border-b border-gray-200">
       <div className="w-full px-8">
         <div className="flex items-center h-16 px-4 sm:px-6 lg:px-8">
           {/* Left side - Logo */}
-          <div className={`flex items-center flex-shrink-0 transition-all duration-300 ease-in-out ${shouldAddPadding ? 'ml-64' : ''}`}>
+          <div className={`flex items-center flex-shrink-0 transition-all duration-300 ease-in-out`}>
             <Link 
               href="/" 
               className="text-xl font-bold text-gray-900 whitespace-nowrap"
@@ -63,9 +52,9 @@ export function NavBar({ isSidebarOpen }: NavBarProps) {
                   </Link>
                   <Link
                     href="/account"
-                    className="text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                    className="px-3 py-1.5 bg-gray-100 rounded-full text-sm font-medium text-gray-800 hover:bg-gray-200 transition-colors"
                   >
-                    Account
+                    {displayName}
                   </Link>
                   <Button 
                     variant="outline" 

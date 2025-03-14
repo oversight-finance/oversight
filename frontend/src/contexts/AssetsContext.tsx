@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import { Asset, AssetType } from "../types/Account";
+import { Asset } from "../types/Asset";
+import { AssetType } from "../types/Asset";
 
 // Calculate current value based on purchase price, date, and rate (appreciation or depreciation)
 const calculateCurrentValue = (
@@ -11,22 +12,23 @@ const calculateCurrentValue = (
   isDepreciation: boolean = false
 ): number => {
   if (!purchasePrice || !purchaseDate) return purchasePrice;
-  
+
   const purchaseDateTime = new Date(purchaseDate).getTime();
   const currentDateTime = new Date().getTime();
-  
+
   // Calculate years elapsed (including partial years)
   const millisecondsPerYear = 1000 * 60 * 60 * 24 * 365.25;
-  const yearsElapsed = (currentDateTime - purchaseDateTime) / millisecondsPerYear;
-  
+  const yearsElapsed =
+    (currentDateTime - purchaseDateTime) / millisecondsPerYear;
+
   // If the purchase date is in the future, return the purchase price
   if (yearsElapsed < 0) return purchasePrice;
-  
+
   // Calculate current value using compound formula
   // For depreciation, we use (1 - rate/100), for appreciation we use (1 + rate/100)
-  const factor = isDepreciation ? (1 - (rate / 100)) : (1 + (rate / 100));
+  const factor = isDepreciation ? 1 - rate / 100 : 1 + rate / 100;
   const currentValue = purchasePrice * Math.pow(factor, yearsElapsed);
-  
+
   // Round to 2 decimal places
   return Math.round(currentValue * 100) / 100;
 };
@@ -38,13 +40,18 @@ const vehicleDepreciationRate = 15;
 
 const defaultVehicle: Asset = {
   id: "default-vehicle-asset",
-  userId: "default-user",
+  user_id: "default-user",
   type: AssetType.VEHICLE,
   name: "Toyota Camry",
-  purchaseValue: vehiclePurchaseValue,
-  currentValue: calculateCurrentValue(vehiclePurchaseValue, vehiclePurchaseDate, vehicleDepreciationRate, true),
-  purchaseDate: vehiclePurchaseDate,
-  createdAt: vehiclePurchaseDate,
+  purchase_value: vehiclePurchaseValue,
+  current_value: calculateCurrentValue(
+    vehiclePurchaseValue,
+    vehiclePurchaseDate,
+    vehicleDepreciationRate,
+    true
+  ),
+  purchase_date: vehiclePurchaseDate,
+  created_at: vehiclePurchaseDate,
   metadata: {
     make: "Toyota",
     model: "Camry",
@@ -57,9 +64,9 @@ const defaultVehicle: Asset = {
     financingType: "finance",
     interestRate: 4.5,
     monthlyPayment: 450,
-    loanTerm: 60
+    loanTerm: 60,
   },
-  prices: []
+  // prices: [],
 };
 
 // Default real estate asset that will always be present
@@ -69,21 +76,25 @@ const realEstateAppreciationRate = 3.5;
 
 const defaultRealEstate: Asset = {
   id: "default-real-estate-asset",
-  userId: "default-user",
+  user_id: "default-user",
   type: AssetType.REAL_ESTATE,
   name: "Main Street Property",
-  purchaseValue: realEstatePurchaseValue,
-  currentValue: calculateCurrentValue(realEstatePurchaseValue, realEstatePurchaseDate, realEstateAppreciationRate),
-  purchaseDate: realEstatePurchaseDate,
-  createdAt: realEstatePurchaseDate,
+  purchase_value: realEstatePurchaseValue,
+  current_value: calculateCurrentValue(
+    realEstatePurchaseValue,
+    realEstatePurchaseDate,
+    realEstateAppreciationRate
+  ),
+  purchase_date: realEstatePurchaseDate,
+  created_at: realEstatePurchaseDate,
   metadata: {
-    propertyType: "single_family",
+    property_type: "single_family",
     address: {
       street: "123 Main Street",
       city: "Springfield",
       state: "IL",
       zipCode: "62704",
-      country: "USA"
+      country: "USA",
     },
     squareFeet: 2200,
     bedrooms: 4,
@@ -98,9 +109,9 @@ const defaultRealEstate: Asset = {
     interestRate: 3.25,
     monthlyPayment: 1520,
     loanTerm: 360,
-    appreciationRate: realEstateAppreciationRate
+    appreciationRate: realEstateAppreciationRate,
   },
-  prices: []
+  // prices: [],
 };
 
 interface AssetsContextType {
@@ -114,12 +125,15 @@ const AssetsContext = createContext<AssetsContextType | null>(null);
 
 export function AssetsProvider({ children }: { children: React.ReactNode }) {
   // Initialize with the default assets
-  const [assets, setAssets] = useState<Asset[]>([defaultVehicle, defaultRealEstate]);
+  const [assets, setAssets] = useState<Asset[]>([
+    defaultVehicle,
+    defaultRealEstate,
+  ]);
 
   const addAsset = (newAsset: Omit<Asset, "id" | "createdAt" | "prices">) => {
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
-    
+
     const asset = {
       ...newAsset,
       id,
@@ -129,14 +143,14 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
 
     setAssets((current) => [...current, asset]);
     console.log("add asset", assets);
-    
+
     return id;
   };
 
   const removeAsset = (id: string) => {
     // Don't allow removing the default assets
     if (id === defaultVehicle.id || id === defaultRealEstate.id) return;
-    
+
     setAssets((current) => current.filter((asset) => asset.id !== id));
   };
 
@@ -163,4 +177,4 @@ export function useAssets() {
     throw new Error("useAssets must be used within an AssetsProvider");
   }
   return context;
-} 
+}
