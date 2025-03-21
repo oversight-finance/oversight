@@ -11,6 +11,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
+// Define the missing types
+export type StringKeyOf<T> = Extract<keyof T, string>;
+
+export interface Option {
+  label: string;
+  value: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  count?: number;
+}
+
+export type ColumnType = "text" | "number" | "date" | "select" | "boolean";
+
 export interface DataTableFilterField<TData> {
   id: StringKeyOf<TData>;
   label: string;
@@ -81,36 +93,36 @@ export function DataTableToolbar<TData>({
       <div className="flex flex-1 items-center gap-2">
         {searchableColumns.length > 0 &&
           searchableColumns.map(
-            (column) =>
-              table.getColumn(column.id ? String(column.id) : "") && (
+            (column) => {
+              const columnId = String(column.id);
+              const columnObj = table.getColumn(columnId);
+              return columnObj ? (
                 <Input
-                  key={String(column.id)}
+                  key={columnId}
                   placeholder={column.placeholder}
-                  value={
-                    (table
-                      .getColumn(String(column.id))
-                      ?.getFilterValue() as string) ?? ""
-                  }
+                  value={(columnObj.getFilterValue() as string) ?? ""}
                   onChange={(event) =>
-                    table
-                      .getColumn(String(column.id))
-                      ?.setFilterValue(event.target.value)
+                    columnObj.setFilterValue(event.target.value)
                   }
                   className="h-8 w-40 lg:w-64"
                 />
-              )
+              ) : null;
+            }
           )}
         {filterableColumns.length > 0 &&
           filterableColumns.map(
-            (column) =>
-              table.getColumn(column.id ? String(column.id) : "") && (
+            (column) => {
+              const columnId = String(column.id);
+              const columnObj = table.getColumn(columnId);
+              return columnObj ? (
                 <DataTableFacetedFilter
-                  key={String(column.id)}
-                  column={table.getColumn(column.id ? String(column.id) : "")}
+                  key={columnId}
+                  column={columnObj}
                   title={column.label}
                   options={column.options ?? []}
                 />
-              )
+              ) : null;
+            }
           )}
         {isFiltered && (
           <Button
@@ -120,7 +132,7 @@ export function DataTableToolbar<TData>({
             onClick={() => table.resetColumnFilters()}
           >
             Reset
-            <X />
+            <X className="ml-2 h-4 w-4" />
           </Button>
         )}
       </div>

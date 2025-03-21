@@ -1,327 +1,170 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Pencil, Trash2, X, Check } from "lucide-react";
+import * as React from "react";
 import { UITransaction } from "@/types/Transaction";
 import AddTransaction from "@/components/AddTransaction/AddTransaction";
+import { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { DataTableColumnHeader } from "@/components/Cooking/data-table-column-header";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TrendingDown, TrendingUp } from "lucide-react";
+import { DataTable } from "@/components/Cooking/DataTable";
 
 /**
- * Configuration for a table column
+ * Interface for the TransactionTable component props
  */
-export interface ColumnConfig {
-  key: keyof UITransaction; // Property name in the transaction object
-  label: string; // Display label
-  type?: "text" | "date" | "currency"; // Format type
-  width?: string; // Optional width specification
-  align?: "left" | "right" | "center"; // Text alignment
-}
-
 interface TransactionTableProps {
   transactions: UITransaction[];
   onDelete?: (transactionId: string) => void;
+  onEdit?: (original: UITransaction, updated: Partial<UITransaction>) => void;
   onTransactionAdd?: (transactions: UITransaction[]) => void;
   accountType?: string; // Type of account: 'bank', 'investment', 'credit', etc.
-  columns?: ColumnConfig[]; // Custom column configuration
   title?: string; // Optional custom title for the card
 }
-
-// Helper to format cell value based on type
-const formatCellValue = (value: unknown, type?: string): string => {
-  if (value === null || value === undefined) return "";
-
-  switch (type) {
-    case "date":
-      return typeof value === "string"
-        ? new Date(value).toLocaleDateString()
-        : String(value);
-    case "currency":
-      return typeof value === "number" ? formatCurrency(value) : String(value);
-    default:
-      return String(value);
-  }
-};
-
-// Generate default columns based on transaction type
-const generateColumnsFromType = (
-  transaction?: UITransaction
-): ColumnConfig[] => {
-  // Default columns with common fields that should always be included
-  const defaultColumns: ColumnConfig[] = [
-    { key: "date", label: "Date", type: "date", align: "left" },
-    { key: "amount", label: "Amount", type: "currency", align: "right" },
-  ];
-
-  // If no sample transaction provided, return default columns
-  if (!transaction) return defaultColumns;
-
-  // Generate additional columns from the transaction object
-  const additionalColumns: ColumnConfig[] = [];
-
-  // Add columns based on non-empty fields in the transaction
-  if (transaction.merchant !== undefined) {
-    additionalColumns.push({
-      key: "merchant",
-      label: "Merchant",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  if (transaction.category !== undefined) {
-    additionalColumns.push({
-      key: "category",
-      label: "Category",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  if (transaction.description !== undefined) {
-    additionalColumns.push({
-      key: "description",
-      label: "Description",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  if (transaction.currency !== undefined) {
-    additionalColumns.push({
-      key: "currency",
-      label: "Currency",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  // Merge and order the columns (date first, amount last, others in between)
-  return [
-    defaultColumns[0], // date
-    ...additionalColumns,
-    defaultColumns[1], // amount
-  ];
-};
 
 export default function TransactionTable({
   transactions,
   onDelete,
+  onEdit,
   onTransactionAdd,
-  columns,
   title = "Transactions",
 }: TransactionTableProps) {
-  // State for editing (placeholders for now)
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingTransaction, setEditingTransaction] =
-    useState<UITransaction | null>(null);
-
-  // Use provided columns or generate from transaction data
-  const tableColumns =
-    columns ||
-    (transactions.length > 0 ? generateColumnsFromType(transactions[0]) : []);
-
-  // Placeholder edit functions - to be implemented later
-  const handleEditStart = (transaction: UITransaction) => {
-    setEditingId(transaction.id);
-    setEditingTransaction({ ...transaction });
-    // This is just a UI placeholder for now
-    console.log("Edit started for transaction:", transaction.id);
-  };
-
-  const handleEditCancel = () => {
-    setEditingId(null);
-    setEditingTransaction(null);
-    console.log("Edit cancelled");
-  };
-
-  const handleEditSave = (transactionId: string) => {
-    // Placeholder - will implement actual saving logic later
-    console.log(
-      "Edit saved for transaction:",
-      transactionId,
-      editingTransaction
-    );
-    setEditingId(null);
-    setEditingTransaction(null);
-  };
-
-  // Render cell content based on edit state
-  const renderCell = (transaction: UITransaction, column: ColumnConfig) => {
-    const isEditing = editingId === transaction.id;
-    const key = column.key;
-    const value = transaction[key];
-
-    // When in edit mode, show input fields (non-functional placeholders for now)
-    if (isEditing) {
-      switch (column.type) {
-        case "date":
-          const dateValue =
-            typeof value === "string" ? value.split("T")[0] : "";
-          return (
-            <Input
-              type="date"
-              value={dateValue}
-              onChange={() => {}} // Placeholder - no functionality yet
-              className="w-full"
-              disabled
-            />
-          );
-        case "currency":
-          return (
-            <Input
-              type="number"
-              value={value as number}
-              onChange={() => {}} // Placeholder - no functionality yet
-              className="w-full text-right"
-              step="0.01"
-              disabled
-            />
-          );
-        default:
-          return (
-            <Input
-              type="text"
-              value={String(value || "")}
-              onChange={() => {}} // Placeholder - no functionality yet
-              className="w-full"
-              disabled
-            />
-          );
-      }
+  // Define the columns for the transactions data
+  const columns: ColumnDef<UITransaction>[] = [
+    {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          className="translate-y-[2px]"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: "date",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Date" />
+      ),
+      cell: ({ row }) => {
+        const date = new Date(row.getValue("date"));
+        return <div>{date.toLocaleDateString()}</div>;
+      },
+      enableSorting: true,
+      enableHiding: true,
+    },
+    {
+      accessorKey: "merchant",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Merchant" />
+      ),
+      cell: ({ row }) => <div>{row.getValue("merchant") || "-"}</div>,
+      enableSorting: true,
+      enableHiding: true,
+    },
+    {
+      accessorKey: "category",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Category" />
+      ),
+      cell: ({ row }) => {
+        const category = row.getValue("category");
+        return category ? (
+          <Badge variant="outline" className="capitalize">
+            {category as string}
+          </Badge>
+        ) : (
+          "-"
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+    },
+    {
+      accessorKey: "amount",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Amount" />
+      ),
+      cell: ({ row }) => {
+        const amount = row.getValue("amount") as number;
+        const formatted = formatCurrency(amount);
+        
+        return (
+          <div className="flex items-center">
+            {amount < 0 ? (
+              <TrendingDown className="mr-2 h-4 w-4 text-destructive" />
+            ) : (
+              <TrendingUp className="mr-2 h-4 w-4 text-success" />
+            )}
+            <span className={amount < 0 ? "text-destructive" : "text-success"}>
+              {formatted}
+            </span>
+          </div>
+        );
+      },
+      enableSorting: true,
+      enableHiding: true,
+    },
+    {
+      accessorKey: "description",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title="Description" />
+      ),
+      cell: ({ row }) => <div>{row.getValue("description") || "-"}</div>,
+      enableSorting: true,
+      enableHiding: true,
     }
+  ];
 
-    // Display mode - use the formatCellValue helper
-    return formatCellValue(value, column.type);
+  // Handle the edit and delete operations
+  const handleEdit = (row: UITransaction, updatedData: Partial<UITransaction>) => {
+    if (onEdit) {
+      onEdit(row, updatedData);
+    }
+  };
+
+  const handleDelete = (row: UITransaction) => {
+    if (onDelete) {
+      onDelete(row.id);
+    }
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>{title}</CardTitle>
-        {onTransactionAdd && (
+    <div className="space-y-4">
+      {onTransactionAdd && (
+        <div className="flex justify-end mb-2">
           <AddTransaction
-            onTransactionAdd={(parsedData) =>
-              onTransactionAdd(parsedData as UITransaction[])
-            }
+            onTransactionAdd={(parsedData) => {
+              if (onTransactionAdd) {
+                onTransactionAdd(parsedData as UITransaction[]);
+              }
+            }}
           />
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="border rounded-lg">
-          <div className="max-h-[500px] overflow-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 bg-background border-b">
-                <tr>
-                  {tableColumns.map((column, index) => (
-                    <th
-                      key={index}
-                      className={`px-4 py-2 text-${column.align || "left"}`}
-                      style={{ width: column.width }}
-                    >
-                      {column.label}
-                    </th>
-                  ))}
-                  <th className="px-4 py-2 text-right w-24">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length > 0 ? (
-                  transactions.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-b last:border-b-0 hover:bg-muted/50"
-                    >
-                      {tableColumns.map((column, index) => {
-                        const key = column.key;
-                        const value = row[key];
-                        const isAmountColumn = key === "amount";
-
-                        return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 ${
-                              column.align ? `text-${column.align}` : ""
-                            } ${
-                              isAmountColumn && (value as number) < 0
-                                ? "text-destructive"
-                                : isAmountColumn && (value as number) > 0
-                                ? "text-success"
-                                : ""
-                            }`}
-                          >
-                            {renderCell(row, column)}
-                          </td>
-                        );
-                      })}
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex justify-end gap-2">
-                          {editingId === row.id ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditSave(row.id)}
-                                className="h-8 w-8"
-                                title="Save changes"
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleEditCancel}
-                                className="h-8 w-8"
-                                title="Cancel editing"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditStart(row)}
-                                className="h-8 w-8"
-                                title="Edit transaction"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              {onDelete && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => onDelete(row.id)}
-                                  className="h-8 w-8"
-                                  title="Delete transaction"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={tableColumns.length + 1}
-                      className="px-4 py-8 text-center text-muted-foreground"
-                    >
-                      No transactions found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
         </div>
-      </CardContent>
-    </Card>
+      )}
+      
+      <DataTable
+        columns={columns}
+        data={transactions}
+        title={title}
+        onEdit={onEdit ? handleEdit : undefined}
+        onDelete={onDelete ? handleDelete : undefined}
+      />
+    </div>
   );
 }

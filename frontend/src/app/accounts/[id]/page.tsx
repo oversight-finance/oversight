@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { DataTable, ColumnDef } from "@/components/DataTable/DataTable";
+import TransactionTable from "@/components/TransactionTable/TransactionTable";
 import {
   useAccounts,
   createTransaction,
@@ -31,50 +31,6 @@ export default function AccountPage() {
   const [transactions, setTransactions] = useState<UITransaction[]>([]);
   const [pageLoading, setPageLoading] = useState(true);
 
-  // Define table columns for transactions with better configuration for editing
-  const columns: ColumnDef<UITransaction>[] = [
-    {
-      accessorKey: "date",
-      header: "Date",
-      type: "date",
-      editable: true,
-    },
-    {
-      accessorKey: "merchant",
-      header: "Merchant",
-      type: "text",
-      editable: true,
-    },
-    {
-      accessorKey: "category",
-      header: "Category",
-      type: "text",
-      editable: true,
-    },
-    {
-      accessorKey: "description",
-      header: "Description",
-      type: "text",
-      editable: true,
-    },
-    {
-      accessorKey: "amount",
-      header: "Amount",
-      type: "currency",
-      align: "right",
-      editable: true,
-      // Custom cell renderer for highlighting positive/negative values
-      cell: (value) => {
-        if (typeof value !== "number") return formatCurrency(0);
-        return (
-          <span className={value < 0 ? "text-destructive" : "text-success"}>
-            {formatCurrency(value)}
-          </span>
-        );
-      },
-    },
-  ];
-
   // Fetch transactions when the account ID changes
   useEffect(() => {
     const loadTransactions = async () => {
@@ -96,34 +52,40 @@ export default function AccountPage() {
   }, [account, getTransactions]);
 
   // Handle adding a new transaction
-  const handleTransactionAdd = async (newTransaction: UITransaction) => {
+  const handleTransactionAdd = async (newTransactions: UITransaction[]) => {
     try {
-      // Ensure the transaction has required fields with defaults
-      const transaction: UITransaction = {
-        id: crypto.randomUUID(),
-        account_id: id as string,
-        date: new Date().toISOString(),
-        amount: 0,
-        currency: "USD",
-        merchant: "",
-        category: "",
-        description: "",
-      };
+      const createdTransactions = [];
+      
+      for (const newTx of newTransactions) {
+        // Create base transaction with default values
+        const transaction: UITransaction = {
+          id: crypto.randomUUID(),
+          account_id: id as string,
+          date: new Date().toISOString(),
+          amount: 0,
+          currency: "USD",
+          merchant: "",
+          category: "",
+          description: "",
+        };
+        
+        // Apply the provided values (will override defaults)
+        const completeTransaction = {
+          ...transaction,
+          ...newTx
+        };
 
-      // Apply the provided values (will override defaults)
-      const completeTransaction = {
-        ...transaction,
-        ...newTransaction,
-      };
+        // Convert UI transaction to database format
+        const dbTransaction = toDatabaseTransaction(completeTransaction);
 
-      // Convert UI transaction to database format
-      const dbTransaction = toDatabaseTransaction(completeTransaction);
-
-      // Create transaction in the database
-      await createTransaction({
-        ...dbTransaction,
-        account_id: id as string,
-      });
+        // Create transaction in the database
+        await createTransaction({
+          ...dbTransaction,
+          account_id: id as string,
+        });
+        
+        createdTransactions.push(completeTransaction);
+      }
 
       // Refresh transactions
       const updatedTxs = await getTransactions(id as string);
@@ -131,17 +93,20 @@ export default function AccountPage() {
 
       // Also refresh account data to update balances
       await refreshAccounts();
+      
+      return createdTransactions;
     } catch (error) {
       console.error("Error adding transaction:", error);
+      return [];
     }
   };
 
   // Handle deleting a transaction
-  const handleTransactionDelete = async (transaction: UITransaction) => {
+  const handleTransactionDelete = async (transactionId: string) => {
     if (!confirm("Are you sure you want to delete this transaction?")) return;
 
     try {
-      await deleteTx(transaction.id);
+      await deleteTx(transactionId);
 
       // Refresh transactions
       const updatedTxs = await getTransactions(id as string);
@@ -220,15 +185,13 @@ export default function AccountPage() {
 
       <div className="flex flex-col xl:flex-row gap-4 md:gap-6">
         <div className="flex-1 min-w-0">
-          <DataTable
-            data={transactions}
-            columns={columns}
-            title="Transactions"
+          <TransactionTable
+            transactions={transactions}
             onDelete={handleTransactionDelete}
             onEdit={handleTransactionEdit}
-            onAdd={handleTransactionAdd}
-            emptyMessage="No transactions found for this account."
-            showActions={true}
+            onTransactionAdd={handleTransactionAdd}
+            title="Transactions"
+            accountType="bank"
           />
         </div>
         <div className="w-full xl:w-80 shrink-0">

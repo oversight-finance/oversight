@@ -147,7 +147,7 @@ export function DataTable<T extends Record<string, any>>({
       switch (column.type) {
         case "date":
           const dateValue =
-            value instanceof Date
+            value && typeof value === 'object' && (value as any) instanceof Date
               ? value.toISOString().split("T")[0]
               : typeof value === "string"
               ? value.split("T")[0]

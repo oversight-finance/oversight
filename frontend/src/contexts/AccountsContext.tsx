@@ -1,10 +1,10 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { Account } from "@/types/Account";
+import { Account, AccountType } from "@/types/Account";
 import { BankTransaction } from "@/types/Transaction";
 import { createClient } from "@/utils/supabase/client";
-import { fetchUserAccounts } from "@/database/Accounts";
+import { fetchUserAccounts, createAccount } from "@/database/Accounts";
 import { fetchAccountTransactions as fetchTxs } from "@/database/Transactions";
 
 // Export database functions directly so components can use them
@@ -28,6 +28,7 @@ export type AccountsContextType = {
   // Core actions
   refreshAccounts: () => Promise<void>;
   getTransactions: (accountId: string) => Promise<Transaction[]>;
+  addAccount: (account: Omit<Account, "id" | "created_at" | "updated_at">) => Promise<Account | null>;
 
   // Current user
   getCurrentUserId: () => Promise<string | null>;
@@ -110,6 +111,34 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Add a new account to the database
+  const addAccount = async (accountData: Omit<Account, "id" | "created_at" | "updated_at">): Promise<Account | null> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Create the account in the database
+      const newAccount = await createAccount(accountData);
+      
+      if (!newAccount) {
+        throw new Error("Failed to create account");
+      }
+      
+      // Refresh accounts to include the new account
+      await refreshAccounts();
+      
+      return newAccount;
+    } catch (error) {
+      const message = 
+        error instanceof Error ? error.message : "Failed to create account";
+      setError(message);
+      console.error("Error creating account:", error);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AccountsContext.Provider
       value={{
@@ -121,6 +150,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
         // Core actions
         refreshAccounts,
         getTransactions,
+        addAccount,
 
         // User info
         getCurrentUserId,
