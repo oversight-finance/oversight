@@ -30,15 +30,14 @@ export interface Account {
 
 /**
  * Bank account interface matching bank_accounts table
+ * Extends the base Account type
  */
-export interface BankAccount {
-  account_id: string;
+export interface BankAccount extends Account {
   account_name: string;
   institution_name: string;
   account_number: string;
   routing_number: string;
   currency: string;
-  balance: number;
 }
 
 /**
