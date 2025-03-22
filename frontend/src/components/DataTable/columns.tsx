@@ -5,13 +5,12 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 
-import { labels, priorities, statuses } from "./dataExample/data";
-import { Task } from "./dataExample/schema";
+import { labels, priorities, statuses } from "../Cooking/dataExample/data";
+import { Task } from "../Cooking/dataExample/schema";
 import { DataTableColumnHeader } from "./data-table-column-header";
 import { DataTableRowActions } from "./data-table-row-actions";
 
 export const columns: ColumnDef<Task>[] = [
-
   {
     id: "select",
     header: ({ table }) => (

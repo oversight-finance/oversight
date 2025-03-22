@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Account } from "@/types/Account";
+import { useAccounts } from "@/contexts/AccountsContext";
 import {
   Area,
   AreaChart,
@@ -12,6 +13,8 @@ import {
   YAxis,
 } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
+import { useEffect, useState } from "react";
+import { BankAccountTransaction } from "@/types";
 
 interface AccountBalanceProps {
   account: Account;
@@ -56,7 +59,42 @@ const formatAxisDate = (date: Date, data: BalanceDataPoint[]) => {
 };
 
 export default function AccountBalance({ account }: AccountBalanceProps) {
-  if (!account.transactions || account.transactions.length === 0) {
+  const { getTransactions } = useAccounts();
+  const [transactions, setTransactions] = useState<BankAccountTransaction[]>(
+    []
+  );
+  const [balancePoints, setBalancePoints] = useState<BalanceDataPoint[]>([]);
+
+  // Fetch transactions when account changes
+  useEffect(() => {
+    async function fetchTransactions() {
+      const txs = await getTransactions(account.id);
+      setTransactions(txs);
+
+      if (txs && txs.length > 0) {
+        const sortedTxs = [...txs].sort(
+          (a, b) =>
+            new Date(a.transaction_date).getTime() -
+            new Date(b.transaction_date).getTime()
+        );
+
+        let runningBalance = 0;
+        const points = sortedTxs.map((transaction) => {
+          runningBalance += transaction.amount;
+          return {
+            date: new Date(transaction.transaction_date),
+            balance: runningBalance,
+          };
+        });
+
+        setBalancePoints(points);
+      }
+    }
+
+    fetchTransactions();
+  }, [account.id, getTransactions]);
+
+  if (transactions.length === 0) {
     return (
       <Card>
         <CardHeader>
@@ -70,23 +108,6 @@ export default function AccountBalance({ account }: AccountBalanceProps) {
       </Card>
     );
   }
-
-  const sortedTransactions = [...account.transactions].sort(
-    (a, b) =>
-      new Date(a.transactionDate).getTime() -
-      new Date(b.transactionDate).getTime()
-  );
-
-  let runningBalance = 0;
-  const balancePoints: BalanceDataPoint[] = sortedTransactions.map(
-    (transaction) => {
-      runningBalance += transaction.amount;
-      return {
-        date: new Date(transaction.transactionDate),
-        balance: runningBalance,
-      };
-    }
-  );
 
   if (balancePoints.length === 0) {
     return (

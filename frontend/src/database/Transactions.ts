@@ -1,8 +1,8 @@
 import { createClient } from "@/utils/supabase/client";
-import { BankAccountTransaction } from "@/types/BankAccountTransaction";
+import { BankAccountTransaction } from "@/types";
 import { syncAccountBalance } from "./Accounts";
 
-type BasicTransactionData = Omit<BankAccountTransaction, "id" | "created_at">;
+type CreateBankTransactionData = Omit<BankAccountTransaction, "id">;
 type TransactionResult = { id: string; account_id: string };
 
 /**
@@ -12,7 +12,7 @@ type TransactionResult = { id: string; account_id: string };
  * @param offset Optional offset for pagination
  * @returns Array of transactions or empty array if none found
  */
-export const fetchAccountTransactions = async (
+export const fetchBankAccountTransactions = async (
   accountId: string,
   limit?: number,
   offset?: number
@@ -53,7 +53,7 @@ export const fetchAccountTransactions = async (
  * @param transactionId The ID of the transaction to fetch
  * @returns The transaction or null if not found
  */
-export const fetchTransactionById = async (
+export const fetchBankTransactionById = async (
   transactionId: string
 ): Promise<BankAccountTransaction | null> => {
   if (!transactionId) return null;
@@ -85,7 +85,7 @@ export const fetchTransactionById = async (
  * @returns Array of created transaction IDs or null if creation failed
  */
 const createTransactionsCore = async (
-  transactions: BasicTransactionData[]
+  transactions: CreateBankTransactionData[]
 ): Promise<TransactionResult[] | null> => {
   if (!transactions.length) return null;
 
@@ -99,7 +99,7 @@ const createTransactionsCore = async (
     const now = new Date().toISOString();
     const preparedTransactions = transactions.map((tx) => ({
       ...tx,
-      created_at: now,
+      transaction_date: now,
     }));
 
     const { data, error } = await supabase
@@ -136,7 +136,7 @@ const createTransactionsCore = async (
  * @returns The created transaction ID or null if creation failed
  */
 export const createTransaction = async (
-  transaction: BasicTransactionData
+  transaction: CreateBankTransactionData
 ): Promise<string | null> => {
   const results = await createTransactionsCore([transaction]);
   return results ? results[0].id : null;
@@ -147,8 +147,8 @@ export const createTransaction = async (
  * @param transactions Array of transactions to create
  * @returns Array of created transaction IDs or null if creation failed
  */
-export const createTransactionBatch = async (
-  transactions: BasicTransactionData[]
+export const createBankTransactionBatch = async (
+  transactions: CreateBankTransactionData[]
 ): Promise<string[] | null> => {
   const results = await createTransactionsCore(transactions);
   return results ? results.map((r) => r.id) : null;
@@ -160,8 +160,8 @@ export const createTransactionBatch = async (
  * @param accountId The account ID these transactions belong to
  * @returns Array of created transaction IDs or null if creation failed
  */
-export const createTransactionsForAccount = async (
-  transactions: Omit<BasicTransactionData, "account_id">[],
+export const createBankTransactionsForAccount = async (
+  transactions: Omit<CreateBankTransactionData, "account_id">[],
   accountId: string
 ): Promise<string[] | null> => {
   if (!accountId || !transactions.length) return null;
@@ -172,7 +172,7 @@ export const createTransactionsForAccount = async (
     account_id: accountId,
   }));
 
-  return await createTransactionBatch(completeTransactions);
+  return await createBankTransactionBatch(completeTransactions);
 };
 
 /**
@@ -181,9 +181,9 @@ export const createTransactionsForAccount = async (
  * @param updates The updates to apply to each transaction
  * @returns Map of transaction IDs to success/failure status
  */
-const updateTransactionsCore = async (
+const updateBankTransactionsCore = async (
   transactionIds: string[],
-  updates: Partial<BasicTransactionData>
+  updates: Partial<CreateBankTransactionData>
 ): Promise<Map<string, boolean>> => {
   if (!transactionIds.length) return new Map();
 
@@ -230,7 +230,7 @@ const updateTransactionsCore = async (
 
     // If account_id was changed, add the new account IDs to the set
     if (updates.account_id) {
-      accountsToUpdate.add(updates.account_id);
+      accountsToUpdate.add(updates.account_id as string);
     }
 
     // Update all account balances in parallel
@@ -255,13 +255,13 @@ const updateTransactionsCore = async (
  * @param updates The transaction fields to update
  * @returns True if successful, false otherwise
  */
-export const updateTransaction = async (
+export const updateBankTransaction = async (
   transactionId: string,
-  updates: Partial<BasicTransactionData>
+  updates: Partial<CreateBankTransactionData>
 ): Promise<boolean> => {
   if (!transactionId) return false;
 
-  const results = await updateTransactionsCore([transactionId], updates);
+  const results = await updateBankTransactionsCore([transactionId], updates);
   return results.get(transactionId) || false;
 };
 
@@ -271,11 +271,11 @@ export const updateTransaction = async (
  * @param updates The updates to apply to all transactions
  * @returns Map of transaction IDs to success/failure status
  */
-export const updateTransactionBatch = async (
+export const updateBankTransactionBatch = async (
   transactionIds: string[],
-  updates: Partial<BasicTransactionData>
+  updates: Partial<CreateBankTransactionData>
 ): Promise<Map<string, boolean>> => {
-  return await updateTransactionsCore(transactionIds, updates);
+  return await updateBankTransactionsCore(transactionIds, updates);
 };
 
 /**
@@ -283,7 +283,7 @@ export const updateTransactionBatch = async (
  * @param transactionIds Array of transaction IDs to delete
  * @returns Map of transaction IDs to success/failure status
  */
-const deleteTransactionsCore = async (
+const deleteBankTransactionsCore = async (
   transactionIds: string[]
 ): Promise<Map<string, boolean>> => {
   if (!transactionIds.length) return new Map();
@@ -348,12 +348,12 @@ const deleteTransactionsCore = async (
  * @param transactionId The ID of the transaction to delete
  * @returns True if successful, false otherwise
  */
-export const deleteTransaction = async (
+export const deleteBankTransaction = async (
   transactionId: string
 ): Promise<boolean> => {
   if (!transactionId) return false;
 
-  const results = await deleteTransactionsCore([transactionId]);
+  const results = await deleteBankTransactionsCore([transactionId]);
   return results.get(transactionId) || false;
 };
 
@@ -362,10 +362,10 @@ export const deleteTransaction = async (
  * @param transactionIds Array of transaction IDs to delete
  * @returns Map of transaction IDs to success/failure status
  */
-export const deleteTransactionBatch = async (
+export const deleteBankTransactionBatch = async (
   transactionIds: string[]
 ): Promise<Map<string, boolean>> => {
-  return await deleteTransactionsCore(transactionIds);
+  return await deleteBankTransactionsCore(transactionIds);
 };
 
 /**
@@ -376,7 +376,7 @@ export const deleteTransactionBatch = async (
  * @param filters Optional additional filters like merchant or category
  * @returns Array of transactions or empty array if none found
  */
-export const fetchTransactionsByDateRange = async (
+export const fetchBankTransactionsByDateRange = async (
   accountId: string,
   startDate: string,
   endDate: string,

@@ -1,459 +1,477 @@
 "use client";
 
-import { useState } from "react";
+import * as React from "react";
+import {
+  ColumnDef,
+  ColumnFiltersState,
+  SortingState,
+  VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getFacetedRowModel,
+  getFacetedUniqueValues,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+
 import {
   Table,
-  TableHeader,
   TableBody,
-  TableHead,
-  TableRow,
   TableCell,
-  TableFooter,
-  TableCaption,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
+
+import { DataTablePagination } from "./data-table-pagination";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Pencil, Trash2, MoreHorizontal, Plus } from "lucide-react";
 import {
-  Pencil,
-  Trash2,
-  CheckCircle,
-  XCircle,
-  PlusCircle,
-  Plus,
-  Check,
-  X,
-} from "lucide-react";
-import { formatCurrency } from "@/lib/utils";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Search } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from "@/components/ui/dialog";
-import { Form } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { format } from "date-fns";
 
-/**
- * Column configuration for the data table
- */
-export interface ColumnDef<T> {
-  accessorKey: keyof T; // Key to access the data property
-  header: string; // Display label for column header
-  cell?: (value: any, row: T) => React.ReactNode; // Optional custom cell renderer
-  type?: "text" | "date" | "currency" | "number"; // Format type
-  editable?: boolean; // Whether this column can be edited
-  width?: string; // Optional width specification
-  align?: "left" | "right" | "center"; // Text alignment
+interface DataTableProps<TData extends Record<string, any>, TValue> {
+  columns: ColumnDef<TData, TValue>[];
+  data: TData[];
+  title?: string;
+  onEdit?: (row: TData, updatedRow: Partial<TData>) => void;
+  onDelete?: (row: TData) => void;
+  onAdd?: (row: TData) => void;
 }
 
-interface DataTableProps<T extends Record<string, any>> {
-  data: T[]; // Array of data objects
-  columns: ColumnDef<T>[]; // Column definitions
-  title?: string; // Table title
-  onDelete?: (row: T) => void; // Delete handler
-  onAdd?: (row: T) => void; // Add handler
-  onEdit?: (original: T, updated: Partial<T>) => void; // Edit handler
-  showActions?: boolean; // Whether to show action buttons
-  emptyMessage?: string; // Custom message for empty state
-}
-
-/**
- * Format a value for display based on its type
- */
-function formatValue(value: any, type?: string): string {
-  if (value === null || value === undefined) return "";
-
-  switch (type) {
-    case "date":
-      return value instanceof Date
-        ? value.toLocaleDateString()
-        : typeof value === "string"
-        ? new Date(value).toLocaleDateString()
-        : String(value);
-    case "currency":
-      return typeof value === "number" ? formatCurrency(value) : String(value);
-    case "number":
-      return typeof value === "number" ? value.toString() : String(value);
-    default:
-      return String(value);
-  }
-}
-
-export function DataTable<T extends Record<string, any>>({
-  data,
+export function DataTable<TData extends Record<string, any>, TValue>({
   columns,
+  data,
   title = "Data",
+  onEdit,
   onDelete,
   onAdd,
-  onEdit,
-  showActions = true,
-  emptyMessage = "No data available",
-}: DataTableProps<T>) {
-  const [editingId, setEditingId] = useState<string | number | null>(null);
-  const [editingValues, setEditingValues] = useState<Partial<T>>({});
-  const [isAddingNew, setIsAddingNew] = useState(false);
-  const [newRowValues, setNewRowValues] = useState<Partial<T>>({});
+}: DataTableProps<TData, TValue>) {
+  const [rowSelection, setRowSelection] = React.useState({});
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  );
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = React.useState("");
 
-  // Start editing a row
-  const handleEditStart = (row: T) => {
-    const rowId = row.id as string | number;
-    setEditingId(rowId);
-    setEditingValues({ ...row });
-    console.log("Edit started for row:", rowId);
-  };
+  // Create stable action column reference
+  const actionColumn = React.useMemo(
+    () => ({
+      id: "actions",
+      enableHiding: false,
+      cell: ({ row }: any) => {
+        const rowData = row.original as TData;
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                className="h-8 w-8 p-0"
+                aria-label="Open menu"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {onEdit && (
+                <DropdownMenuItem>
+                  <EditDialog
+                    row={rowData}
+                    onEdit={onEdit}
+                    title={title}
+                    columns={columns}
+                  />
+                </DropdownMenuItem>
+              )}
+              {onDelete && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        "Are you sure you want to delete this item?"
+                      )
+                    ) {
+                      onDelete(rowData);
+                    }
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        );
+      },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }),
+    []
+  );
 
-  // Cancel editing
-  const handleEditCancel = () => {
-    setEditingId(null);
-    setEditingValues({});
-  };
+  // Prepare columns with actions if needed
+  const tableColumns = React.useMemo(() => {
+    const cols = [...columns];
 
-  // Save edited row
-  const handleEditSave = (original: T) => {
-    if (onEdit) {
-      onEdit(original, editingValues);
-    }
-    setEditingId(null);
-    setEditingValues({});
-  };
-
-  // Handle field value change during editing
-  const handleEditChange = (key: keyof T, value: any) => {
-    setEditingValues((prev) => ({ ...prev, [key]: value }));
-  };
-
-  // Determine if a column's value is a number or currency for alignment
-  const getColumnAlignment = (column: ColumnDef<T>) => {
-    if (column.align) return column.align;
-    if (column.type === "number" || column.type === "currency") return "right";
-    return "left";
-  };
-
-  // Render a cell with custom formatting, editing support, and alignment
-  const renderCell = (row: T, column: ColumnDef<T>) => {
-    const key = column.accessorKey;
-    const value = row[key];
-    const isEditing =
-      editingId !== null && editingId === (row.id as string | number);
-
-    // Custom cell renderer takes priority
-    if (column.cell && !isEditing) {
-      return column.cell(value, row);
-    }
-
-    // When in edit mode, show input fields
-    if (isEditing && column.editable !== false) {
-      switch (column.type) {
-        case "date":
-          const dateValue =
-            value && typeof value === 'object' && (value as any) instanceof Date
-              ? value.toISOString().split("T")[0]
-              : typeof value === "string"
-              ? value.split("T")[0]
-              : "";
-          return (
-            <Input
-              type="date"
-              value={dateValue}
-              onChange={(e) => handleEditChange(key, e.target.value)}
-              className="w-full"
-            />
-          );
-        case "currency":
-        case "number":
-          return (
-            <Input
-              type="number"
-              value={
-                editingValues[key] !== undefined ? editingValues[key] : value
-              }
-              onChange={(e) =>
-                handleEditChange(
-                  key,
-                  e.target.value ? parseFloat(e.target.value) : ""
-                )
-              }
-              className={`w-full text-${getColumnAlignment(column)}`}
-              step="0.01"
-            />
-          );
-        default:
-          return (
-            <Input
-              type="text"
-              value={
-                editingValues[key] !== undefined
-                  ? String(editingValues[key])
-                  : String(value || "")
-              }
-              onChange={(e) => handleEditChange(key, e.target.value)}
-              className="w-full"
-            />
-          );
-      }
+    if ((onEdit || onDelete) && !cols.some((col) => col.id === "actions")) {
+      // @ts-ignore - We know this is safe
+      cols.push(actionColumn);
     }
 
-    // Display mode
-    return formatValue(value, column.type);
-  };
+    return cols;
+  }, [columns, actionColumn, onEdit, onDelete]);
 
-  // Apply style classes for a cell
-  const getCellClasses = (column: ColumnDef<T>, row: T) => {
-    const classes = [`text-${getColumnAlignment(column)}`];
-
-    // Add special styling for currency and number fields
-    if (
-      (column.type === "currency" || column.type === "number") &&
-      typeof row[column.accessorKey] === "number"
-    ) {
-      const value = row[column.accessorKey] as number;
-      if (value < 0) classes.push("text-destructive");
-      else if (value > 0 && column.type === "currency")
-        classes.push("text-success");
-    }
-
-    return classes.join(" ");
-  };
-
-  // Handle adding a new item
-  const handleAddNew = () => {
-    setIsAddingNew(true);
-    // Initialize with empty values
-    const initialValues: Partial<T> = {};
-    columns.forEach((column) => {
-      if (column.editable !== false) {
-        // Set default values based on type
-        switch (column.type) {
-          case "date":
-            initialValues[column.accessorKey] = new Date()
-              .toISOString()
-              .split("T")[0] as any;
-            break;
-          case "number":
-          case "currency":
-            initialValues[column.accessorKey] = 0 as any;
-            break;
-          default:
-            initialValues[column.accessorKey] = "" as any;
-        }
-      }
-    });
-    setNewRowValues(initialValues);
-  };
-
-  // Cancel adding new item
-  const handleAddCancel = () => {
-    setIsAddingNew(false);
-    setNewRowValues({});
-  };
-
-  // Save new item
-  const handleAddSave = () => {
-    if (onAdd) {
-      onAdd(newRowValues as T);
-    }
-    setIsAddingNew(false);
-    setNewRowValues({});
-  };
-
-  // Handle field value change when adding new item
-  const handleAddChange = (key: keyof T, value: any) => {
-    setNewRowValues((prev) => ({ ...prev, [key]: value }));
-  };
+  const table = useReactTable({
+    data,
+    columns: tableColumns,
+    state: {
+      sorting,
+      columnVisibility,
+      rowSelection,
+      columnFilters,
+      globalFilter,
+    },
+    enableRowSelection: true,
+    onRowSelectionChange: setRowSelection,
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onColumnVisibilityChange: setColumnVisibility,
+    onGlobalFilterChange: setGlobalFilter,
+    globalFilterFn: "includesString",
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFacetedRowModel: getFacetedRowModel(),
+    getFacetedUniqueValues: getFacetedUniqueValues(),
+  });
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>{title}</CardTitle>
-        {onAdd && (
-          <>
-            <Button variant="outline" onClick={handleAddNew}>
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add New
+    <Card className="w-full shadow-sm">
+      <CardHeader className="px-6 py-4 flex flex-row items-center justify-between space-y-0 bg-muted/5">
+        <CardTitle className="text-xl font-semibold">{title}</CardTitle>
+        <div className="flex items-center space-x-2">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search..."
+              value={globalFilter ?? ""}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="w-full pl-8 rounded-md border"
+            />
+          </div>
+          {onAdd && (
+            <Button
+              variant="default"
+              size="sm"
+              className="ml-2"
+              onClick={() => {
+                if (onAdd) {
+                  // Create a new row with empty values
+                  if (data.length > 0) {
+                    // Use the first row as template for structure
+                    const template = data[0];
+                    const newRow = {} as TData;
+
+                    // Create empty version of the row
+                    Object.keys(template).forEach((key) => {
+                      // @ts-expect-error - We know this is safe
+                      newRow[key] =
+                        typeof template[key] === "number"
+                          ? 0
+                          : typeof template[key] === "boolean"
+                          ? false
+                          : "";
+                    });
+
+                    onAdd(newRow);
+                  }
+                }
+              }}
+            >
+              <Plus className="h-4 w-4 mr-1" /> Add
             </Button>
-
-            {isAddingNew && (
-              <Dialog open={isAddingNew} onOpenChange={setIsAddingNew}>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Add New {title.replace(/s$/, "")}</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    {columns.map((column, index) => {
-                      if (column.editable === false) return null;
-
-                      const key = column.accessorKey;
-                      const value = newRowValues[key];
-
-                      return (
-                        <div
-                          key={index}
-                          className="grid grid-cols-4 items-center gap-4"
-                        >
-                          <label className="text-right">{column.header}</label>
-                          {column.type === "date" ? (
-                            <Input
-                              type="date"
-                              value={
-                                typeof value === "string"
-                                  ? value.split("T")[0]
-                                  : ""
-                              }
-                              onChange={(e) =>
-                                handleAddChange(key, e.target.value)
-                              }
-                              className="col-span-3"
-                            />
-                          ) : column.type === "number" ||
-                            column.type === "currency" ? (
-                            <Input
-                              type="number"
-                              value={value !== undefined ? value : ""}
-                              onChange={(e) =>
-                                handleAddChange(
-                                  key,
-                                  e.target.value
-                                    ? parseFloat(e.target.value)
-                                    : 0
-                                )
-                              }
-                              className="col-span-3"
-                              step="0.01"
-                            />
-                          ) : (
-                            <Input
-                              type="text"
-                              value={value !== undefined ? String(value) : ""}
-                              onChange={(e) =>
-                                handleAddChange(key, e.target.value)
-                              }
-                              className="col-span-3"
-                            />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={handleAddCancel}>
-                      Cancel
-                    </Button>
-                    <Button onClick={handleAddSave}>Add</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
-            )}
-          </>
-        )}
+          )}
+        </div>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-md border">
+      <CardContent className="p-0">
+        <div className="relative overflow-auto">
           <Table>
             <TableHeader>
-              <TableRow>
-                {columns.map((column, index) => (
-                  <TableHead
-                    key={index}
-                    className={`text-${getColumnAlignment(column)}`}
-                    style={{ width: column.width }}
-                  >
-                    {column.header}
-                  </TableHead>
-                ))}
-                {showActions && (
-                  <TableHead className="text-right w-[100px]">
-                    Actions
-                  </TableHead>
-                )}
-              </TableRow>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} className="px-4 py-3">
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.header,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
             </TableHeader>
             <TableBody>
-              {data.length > 0 ? (
-                data.map((row, rowIndex) => {
-                  const rowId = row.id as string | number;
-                  const isEditing = editingId === rowId;
-
-                  return (
-                    <TableRow key={rowId || rowIndex}>
-                      {columns.map((column, colIndex) => (
-                        <TableCell
-                          key={`${rowId || rowIndex}-${colIndex}`}
-                          className={getCellClasses(column, row)}
-                        >
-                          {renderCell(row, column)}
-                        </TableCell>
-                      ))}
-                      {showActions && (
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            {isEditing ? (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleEditSave(row)}
-                                  className="h-8 w-8"
-                                  title="Save changes"
-                                >
-                                  <CheckCircle className="h-4 w-4" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={handleEditCancel}
-                                  className="h-8 w-8"
-                                  title="Cancel editing"
-                                >
-                                  <XCircle className="h-4 w-4" />
-                                </Button>
-                              </>
-                            ) : (
-                              <>
-                                {onEdit && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleEditStart(row)}
-                                    className="h-8 w-8"
-                                    title="Edit row"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                  </Button>
-                                )}
-                                {onDelete && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => onDelete(row)}
-                                    className="h-8 w-8"
-                                    title="Delete row"
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  );
-                })
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id} className="px-4 py-3">
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
               ) : (
                 <TableRow>
                   <TableCell
-                    colSpan={columns.length + (showActions ? 1 : 0)}
+                    colSpan={columns.length}
                     className="h-24 text-center"
                   >
-                    {emptyMessage}
+                    No results.
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
         </div>
+        <div className="py-4 px-6 border-t">
+          <DataTablePagination table={table} />
+        </div>
       </CardContent>
     </Card>
+  );
+}
+
+// EditDialog component
+interface EditDialogProps<TData extends Record<string, any>, TValue> {
+  row: TData;
+  onEdit: (row: TData, updatedRow: Partial<TData>) => void;
+  title: string;
+  columns: ColumnDef<TData, TValue>[];
+}
+
+function EditDialog<TData extends Record<string, any>, TValue>({
+  row,
+  onEdit,
+  title,
+  columns,
+}: EditDialogProps<TData, TValue>) {
+  const [open, setOpen] = React.useState(false);
+  const [editValues, setEditValues] = React.useState<Record<string, any>>({});
+
+  // Initialize edit values when dialog opens
+  React.useEffect(() => {
+    if (open) {
+      const initialValues: Record<string, any> = {};
+      Object.keys(row).forEach((key) => {
+        initialValues[key] = row[key as keyof TData];
+      });
+      setEditValues(initialValues);
+    }
+  }, [open, row]);
+
+  // Handle saving edits
+  const handleEditSave = () => {
+    const processedValues: Record<string, any> = { ...editValues };
+
+    // Process values to ensure they match the original data types
+    Object.entries(row).forEach(([key, originalValue]) => {
+      if (key in processedValues) {
+        const editValue = processedValues[key];
+
+        // Convert strings to numbers if the original was a number
+        if (
+          typeof originalValue === "number" &&
+          typeof editValue === "string"
+        ) {
+          const parsed = parseFloat(editValue);
+          if (!isNaN(parsed)) {
+            processedValues[key] = parsed;
+          }
+        }
+
+        // Convert string "true"/"false" to boolean if original was boolean
+        if (
+          typeof originalValue === "boolean" &&
+          typeof editValue === "string"
+        ) {
+          if (editValue === "true") processedValues[key] = true;
+          if (editValue === "false") processedValues[key] = false;
+        }
+
+        // Handle date strings
+        if (originalValue instanceof Date && typeof editValue === "string") {
+          processedValues[key] = new Date(editValue);
+        }
+      }
+    });
+
+    // Convert back to Partial<TData> for the onEdit callback
+    const typedValues = processedValues as Partial<TData>;
+    onEdit(row, typedValues);
+    setOpen(false);
+  };
+
+  // Handle input change in edit form
+  const handleEditChange = (key: string, value: any) => {
+    setEditValues((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Get column keys that should be editable (exclude id, actions, etc.)
+  const getEditableColumnKeys = () => {
+    const columnKeys: string[] = [];
+    columns.forEach((column) => {
+      if (
+        "accessorKey" in column &&
+        typeof column.accessorKey === "string" &&
+        column.id !== "select" &&
+        column.id !== "actions"
+      ) {
+        columnKeys.push(column.accessorKey as string);
+      }
+    });
+    return columnKeys;
+  };
+
+  // Function to determine input type based on value
+  const getInputType = (key: string, value: any): string => {
+    if (value === null || value === undefined) return "text";
+
+    if (typeof value === "boolean") return "checkbox";
+    if (typeof value === "number") return "number";
+
+    // Check if it's a date
+    if (value instanceof Date) return "date";
+    if (typeof value === "string") {
+      // Check if string is a date format
+      const dateCheck = new Date(value);
+      if (
+        (!isNaN(dateCheck.getTime()) && value.match(/^\d{4}-\d{2}-\d{2}/)) ||
+        value.match(/^\d{2}\/\d{2}\/\d{4}/)
+      ) {
+        return "date";
+      }
+    }
+
+    return "text";
+  };
+
+  // Function to format value for input
+  const formatValueForInput = (key: string, value: any): string => {
+    if (value === null || value === undefined) return "";
+
+    if (value instanceof Date) {
+      return format(value, "yyyy-MM-dd");
+    }
+
+    if (typeof value === "string") {
+      // Check if string is a date format
+      const dateCheck = new Date(value);
+      if (
+        !isNaN(dateCheck.getTime()) &&
+        (value.match(/^\d{4}-\d{2}-\d{2}/) ||
+          value.match(/^\d{2}\/\d{2}\/\d{4}/))
+      ) {
+        return format(dateCheck, "yyyy-MM-dd");
+      }
+    }
+
+    return String(value);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <div className="flex items-center w-full cursor-pointer">
+          <Pencil className="mr-2 h-4 w-4" />
+          Edit
+        </div>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit {title.replace(/s$/, "")}</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          {getEditableColumnKeys().map((key) => {
+            const inputType = getInputType(key, row[key]);
+            const formattedValue = formatValueForInput(key, editValues[key]);
+
+            return (
+              <div key={key} className="grid grid-cols-4 items-center gap-4">
+                <Label
+                  htmlFor={key}
+                  className="text-right font-medium capitalize"
+                >
+                  {key
+                    .replace(/([A-Z])/g, " $1")
+                    .replace(/_/g, " ")
+                    .trim()}
+                </Label>
+
+                {inputType === "checkbox" ? (
+                  <div className="col-span-3 flex items-center">
+                    <Checkbox
+                      id={key}
+                      checked={Boolean(editValues[key])}
+                      onCheckedChange={(checked) =>
+                        handleEditChange(key, checked)
+                      }
+                    />
+                  </div>
+                ) : (
+                  <Input
+                    id={key}
+                    type={inputType}
+                    value={formattedValue}
+                    onChange={(e) => handleEditChange(key, e.target.value)}
+                    className="col-span-3"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="button" onClick={handleEditSave}>
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
