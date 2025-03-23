@@ -88,8 +88,6 @@ export default function CreateAccount({
         return "Create New Bank Account";
       case AccountType.INVESTMENT:
         return "Add New Investment Account";
-      case AccountType.OTHER:
-        return "Add New Account";
       default:
         return "Add New Account";
     }

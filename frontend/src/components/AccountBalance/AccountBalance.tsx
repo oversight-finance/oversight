@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Account } from "@/types/Account";
-import { useAccounts } from "@/contexts/AccountsContext";
+import { useAccounts, Transaction } from "@/contexts/AccountsContext";
 import {
   Area,
   AreaChart,
@@ -14,7 +14,6 @@ import {
 } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { useEffect, useState } from "react";
-import { BankAccountTransaction } from "@/types";
 
 interface AccountBalanceProps {
   account: Account;
@@ -60,9 +59,7 @@ const formatAxisDate = (date: Date, data: BalanceDataPoint[]) => {
 
 export default function AccountBalance({ account }: AccountBalanceProps) {
   const { getTransactions } = useAccounts();
-  const [transactions, setTransactions] = useState<BankAccountTransaction[]>(
-    []
-  );
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [balancePoints, setBalancePoints] = useState<BalanceDataPoint[]>([]);
 
   // Fetch transactions when account changes
@@ -72,17 +69,33 @@ export default function AccountBalance({ account }: AccountBalanceProps) {
       setTransactions(txs);
 
       if (txs && txs.length > 0) {
-        const sortedTxs = [...txs].sort(
-          (a, b) =>
-            new Date(a.transaction_date).getTime() -
-            new Date(b.transaction_date).getTime()
-        );
+        const sortedTxs = [...txs].sort((a, b) => {
+          // Handle different transaction types by checking for transaction_date property
+          const dateA =
+            "transaction_date" in a
+              ? new Date(a.transaction_date).getTime()
+              : new Date().getTime();
+          const dateB =
+            "transaction_date" in b
+              ? new Date(b.transaction_date).getTime()
+              : new Date().getTime();
+          return dateA - dateB;
+        });
 
         let runningBalance = 0;
         const points = sortedTxs.map((transaction) => {
-          runningBalance += transaction.amount;
+          // Get amount from transaction regardless of its type
+          const amount = "amount" in transaction ? transaction.amount : 0;
+          runningBalance += amount;
+
+          // Get date from transaction based on transaction type
+          const date =
+            "transaction_date" in transaction
+              ? new Date(transaction.transaction_date)
+              : new Date(); // Fallback date
+
           return {
-            date: new Date(transaction.transaction_date),
+            date,
             balance: runningBalance,
           };
         });

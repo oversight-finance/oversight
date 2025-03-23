@@ -159,7 +159,10 @@ export default function BankTransactionTable({
   );
 
   // Fields to exclude from automatic column generation
-  const excludeFields = React.useMemo(() => ["account_id"], []);
+  const excludeFields = React.useMemo(
+    () => ["account_id"] as Array<keyof BankAccountTransaction>,
+    []
+  );
 
   return (
     <div>

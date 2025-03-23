@@ -11,7 +11,16 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer } from "@/components/ui/chart";
 import { useAccounts } from "@/contexts/AccountsContext";
-import { Transaction } from "@/types/Account";
+import {
+  BankAccountTransaction,
+  CryptoWalletTransaction,
+  InvestmentTransaction,
+  TransactionBase,
+  Transaction,
+} from "@/types/Transaction";
+
+// Define a type that handles all transaction types
+type AnyTransaction = Transaction;
 
 interface SpendingData {
   name: string;
@@ -63,13 +72,21 @@ export default function SpendingChart() {
 
   // Get all transactions and filter out positive amounts (income)
   const allTransactions = accounts.flatMap((account) =>
-    (account.transactions || []).filter((t) => t.amount < 0)
+    (account.transactions || []).filter((t) => (t as AnyTransaction).amount < 0)
   );
 
   // Group transactions by category and calculate total spending
   const spendingByCategory = allTransactions.reduce((acc, transaction) => {
-    const category = transaction.category || "Uncategorized";
-    acc[category] = (acc[category] || 0) + Math.abs(transaction.amount);
+    const transactionObj = transaction as AnyTransaction;
+    // Use only for bank transactions which have categories
+    if ("category" in transactionObj) {
+      const category = transactionObj.category || "Uncategorized";
+      acc[category] = (acc[category] || 0) + Math.abs(transactionObj.amount);
+    } else {
+      // For other transaction types
+      const category = "Other";
+      acc[category] = (acc[category] || 0) + Math.abs(transactionObj.amount);
+    }
     return acc;
   }, {} as Record<string, number>);
 
