@@ -11,9 +11,6 @@ export enum AccountType {
   CRYPTO = "crypto",
   CREDIT = "credit",
   SAVINGS = "savings",
-  STOCK = "stock",
-  REAL_ESTATE = "real_estate",
-  VEHICLE = "vehicle",
 }
 
 /**
