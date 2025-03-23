@@ -1,4 +1,4 @@
-import { TransactionBase } from "@/components/TransactionTable/TransactionTable";
+import { TransactionBase } from "@/components/TransactionTables/BankAccount/TransactionTable";
 
 /**
  * Represents a bank account transaction as defined in the bank_accounts_transactions table

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import AddTransaction from "@/components/TransactionTable/AddTransaction";
+import AddBankTransaction from "@/components/TransactionTables/BankAccount/AddBankTransaction";
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
@@ -196,9 +196,9 @@ export default function TransactionTable<T extends TransactionBase>({
   };
 
   // Cast to compatible type for DataTable while preserving functionality
-  const compatibleData = transactions as unknown as Record<string, any>[];
+  const compatibleData = transactions as unknown as Record<string, never>[];
   const compatibleColumns = columns as unknown as ColumnDef<
-    Record<string, any>,
+    Record<string, never>,
     unknown
   >[];
 
@@ -206,7 +206,7 @@ export default function TransactionTable<T extends TransactionBase>({
     <div className="space-y-4">
       {onTransactionAdd && (
         <div className="flex justify-end mb-2">
-          <AddTransaction
+          <AddBankTransaction
             onTransactionAdd={(parsedData) => {
               if (onTransactionAdd) {
                 onTransactionAdd(parsedData as unknown as T[]);

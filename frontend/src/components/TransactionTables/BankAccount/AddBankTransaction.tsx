@@ -38,7 +38,6 @@ import { useParams } from "next/navigation";
 import { useAccounts } from "@/contexts/AccountsContext";
 import { createTransaction } from "@/database/Transactions";
 import { toast } from "@/hooks/use-toast";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import React from "react";
 
 const formSchema = z
@@ -73,7 +72,7 @@ const formSchema = z
     }
   });
 
-interface AddTransactionProps {
+interface AddBankTransactionProps {
   onTransactionAdd: (transactions: BankAccountTransaction[]) => void;
 }
 
@@ -103,9 +102,9 @@ const expenseCategories = [
   "Other",
 ];
 
-export default function AddTransaction({
+export default function AddBankTransaction({
   onTransactionAdd,
-}: AddTransactionProps) {
+}: AddBankTransactionProps) {
   const [open, setOpen] = useState(false);
   const { id: accountId } = useParams();
   const { refreshAccounts } = useAccounts();

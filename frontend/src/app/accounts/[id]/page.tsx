@@ -6,7 +6,7 @@ import { useAccounts } from "@/contexts/AccountsContext";
 import AccountBalance from "@/components/AccountBalance/AccountBalance";
 import { formatCurrency } from "@/lib/utils";
 import { BankAccountTransaction } from "@/types";
-import BankTransactionTable from "@/components/TransactionTable/BankTransactionTable";
+import BankTransactionTable from "@/components/TransactionTables/BankAccount/BankTransactionTable";
 
 // Helper to calculate account balance from transactions
 const calculateAccountBalance = (

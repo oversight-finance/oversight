@@ -23,7 +23,7 @@ export default function BankTransactionTable({
     BankAccountTransaction[]
   >([]);
   const [loading, setLoading] = React.useState(true);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [, setIsSubmitting] = React.useState(false);
 
   // Function to refresh transactions
   const refreshTransactions = React.useCallback(async () => {
