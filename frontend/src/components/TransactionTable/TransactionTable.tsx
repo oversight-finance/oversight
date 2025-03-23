@@ -1,327 +1,230 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Pencil, Trash2, X, Check } from "lucide-react";
-import { UITransaction } from "@/types/Transaction";
-import AddTransaction from "@/components/AddTransaction/AddTransaction";
+import * as React from "react";
+import AddTransaction from "@/components/TransactionTable/AddTransaction";
+import { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { DataTableColumnHeader } from "@/components/DataTable/data-table-column-header";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TrendingDown, TrendingUp } from "lucide-react";
+import { DataTable } from "@/components/DataTable/DataTable";
 
 /**
- * Configuration for a table column
+ * Interface requiring common transaction fields
  */
-export interface ColumnConfig {
-  key: keyof UITransaction; // Property name in the transaction object
-  label: string; // Display label
-  type?: "text" | "date" | "currency"; // Format type
-  width?: string; // Optional width specification
-  align?: "left" | "right" | "center"; // Text alignment
+export interface TransactionBase {
+  id: string;
+  [key: string]: unknown;
 }
 
-interface TransactionTableProps {
-  transactions: UITransaction[];
+/**
+ * Interface for the TransactionTable component props
+ */
+interface TransactionTableProps<T extends TransactionBase> {
+  transactions: T[];
   onDelete?: (transactionId: string) => void;
-  onTransactionAdd?: (transactions: UITransaction[]) => void;
+  onEdit?: (original: T, updated: Partial<T>) => void;
+  onTransactionAdd?: (transactions: T[]) => void;
   accountType?: string; // Type of account: 'bank', 'investment', 'credit', etc.
-  columns?: ColumnConfig[]; // Custom column configuration
   title?: string; // Optional custom title for the card
+  // Custom column renderers and configurations
+  columnConfig?: Partial<
+    Record<
+      keyof T,
+      {
+        title?: string;
+        hide?: boolean;
+        sortable?: boolean;
+        render?: (value: unknown, row: T) => React.ReactNode;
+      }
+    >
+  >;
+  // Fields to exclude from automatic column generation
+  excludeFields?: Array<keyof T>;
 }
 
-// Helper to format cell value based on type
-const formatCellValue = (value: unknown, type?: string): string => {
-  if (value === null || value === undefined) return "";
+// Define known field types for special rendering
+type FieldType = "date" | "amount" | "currency" | "category" | "text";
 
-  switch (type) {
-    case "date":
-      return typeof value === "string"
-        ? new Date(value).toLocaleDateString()
-        : String(value);
-    case "currency":
-      return typeof value === "number" ? formatCurrency(value) : String(value);
-    default:
-      return String(value);
-  }
-};
-
-// Generate default columns based on transaction type
-const generateColumnsFromType = (
-  transaction?: UITransaction
-): ColumnConfig[] => {
-  // Default columns with common fields that should always be included
-  const defaultColumns: ColumnConfig[] = [
-    { key: "date", label: "Date", type: "date", align: "left" },
-    { key: "amount", label: "Amount", type: "currency", align: "right" },
-  ];
-
-  // If no sample transaction provided, return default columns
-  if (!transaction) return defaultColumns;
-
-  // Generate additional columns from the transaction object
-  const additionalColumns: ColumnConfig[] = [];
-
-  // Add columns based on non-empty fields in the transaction
-  if (transaction.merchant !== undefined) {
-    additionalColumns.push({
-      key: "merchant",
-      label: "Merchant",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  if (transaction.category !== undefined) {
-    additionalColumns.push({
-      key: "category",
-      label: "Category",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  if (transaction.description !== undefined) {
-    additionalColumns.push({
-      key: "description",
-      label: "Description",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  if (transaction.currency !== undefined) {
-    additionalColumns.push({
-      key: "currency",
-      label: "Currency",
-      type: "text",
-      align: "left",
-    });
-  }
-
-  // Merge and order the columns (date first, amount last, others in between)
-  return [
-    defaultColumns[0], // date
-    ...additionalColumns,
-    defaultColumns[1], // amount
-  ];
-};
-
-export default function TransactionTable({
+export default function TransactionTable<T extends TransactionBase>({
   transactions,
   onDelete,
+  onEdit,
   onTransactionAdd,
-  columns,
   title = "Transactions",
-}: TransactionTableProps) {
-  // State for editing (placeholders for now)
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingTransaction, setEditingTransaction] =
-    useState<UITransaction | null>(null);
+  columnConfig = {},
+  excludeFields = [],
+}: TransactionTableProps<T>) {
+  // Generate columns dynamically based on T
+  const generateColumns = React.useCallback((): ColumnDef<T>[] => {
+    // Create selection column
+    const selectionColumn: ColumnDef<T> = {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          className="translate-y-[2px]"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    };
 
-  // Use provided columns or generate from transaction data
-  const tableColumns =
-    columns ||
-    (transactions.length > 0 ? generateColumnsFromType(transactions[0]) : []);
+    // Get sample transaction to determine field types if available
+    const sampleTransaction = transactions[0] || {};
 
-  // Placeholder edit functions - to be implemented later
-  const handleEditStart = (transaction: UITransaction) => {
-    setEditingId(transaction.id);
-    setEditingTransaction({ ...transaction });
-    // This is just a UI placeholder for now
-    console.log("Edit started for transaction:", transaction.id);
-  };
+    // Determine field types
+    const getFieldType = (key: string): FieldType => {
+      // Check field name patterns
+      if (key.includes("date")) return "date";
+      if (key.includes("amount") || key === "price" || key === "cost")
+        return "amount";
+      if (key.includes("category")) return "category";
 
-  const handleEditCancel = () => {
-    setEditingId(null);
-    setEditingTransaction(null);
-    console.log("Edit cancelled");
-  };
-
-  const handleEditSave = (transactionId: string) => {
-    // Placeholder - will implement actual saving logic later
-    console.log(
-      "Edit saved for transaction:",
-      transactionId,
-      editingTransaction
-    );
-    setEditingId(null);
-    setEditingTransaction(null);
-  };
-
-  // Render cell content based on edit state
-  const renderCell = (transaction: UITransaction, column: ColumnConfig) => {
-    const isEditing = editingId === transaction.id;
-    const key = column.key;
-    const value = transaction[key];
-
-    // When in edit mode, show input fields (non-functional placeholders for now)
-    if (isEditing) {
-      switch (column.type) {
-        case "date":
-          const dateValue =
-            typeof value === "string" ? value.split("T")[0] : "";
-          return (
-            <Input
-              type="date"
-              value={dateValue}
-              onChange={() => {}} // Placeholder - no functionality yet
-              className="w-full"
-              disabled
-            />
-          );
-        case "currency":
-          return (
-            <Input
-              type="number"
-              value={value as number}
-              onChange={() => {}} // Placeholder - no functionality yet
-              className="w-full text-right"
-              step="0.01"
-              disabled
-            />
-          );
-        default:
-          return (
-            <Input
-              type="text"
-              value={String(value || "")}
-              onChange={() => {}} // Placeholder - no functionality yet
-              className="w-full"
-              disabled
-            />
-          );
+      // Check value types if sample available
+      if (sampleTransaction) {
+        const value = sampleTransaction[key as keyof typeof sampleTransaction];
+        if (value instanceof Date) return "date";
+        if (typeof value === "number") return "amount";
       }
-    }
 
-    // Display mode - use the formatCellValue helper
-    return formatCellValue(value, column.type);
+      return "text";
+    };
+
+    // Get all keys from T type (using sample transaction or inference)
+    const allKeys = Object.keys(sampleTransaction) as Array<keyof T>;
+
+    // Filter out excluded fields
+    const visibleKeys = allKeys.filter(
+      (key) => !excludeFields.includes(key) && key !== "id" // Always exclude id from display
+    );
+
+    // Create columns for each key
+    const dynamicColumns = visibleKeys.map((key) => {
+      const fieldType = getFieldType(key as string);
+      const config = columnConfig[key] || {};
+
+      return {
+        accessorKey: key as string,
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={
+              config.title ||
+              (key as string)
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, (char) => char.toUpperCase())
+            }
+          />
+        ),
+        cell: ({ row }) => {
+          // Use custom renderer if provided
+          if (config.render) {
+            return config.render(row.getValue(key as string), row.original);
+          }
+
+          // Otherwise use default renderers based on field type
+          switch (fieldType) {
+            case "date":
+              const dateValue = row.getValue(key as string);
+              const date = dateValue
+                ? new Date(dateValue as string)
+                : new Date();
+              return <div>{date.toLocaleDateString()}</div>;
+
+            case "amount":
+              const amount = row.getValue(key as string) as number;
+              const formatted = formatCurrency(amount);
+
+              return (
+                <div className="flex items-center">
+                  {amount < 0 ? (
+                    <TrendingDown className="mr-2 h-4 w-4 text-destructive" />
+                  ) : (
+                    <TrendingUp className="mr-2 h-4 w-4 text-success" />
+                  )}
+                  <span
+                    className={amount < 0 ? "text-destructive" : "text-success"}
+                  >
+                    {formatted}
+                  </span>
+                </div>
+              );
+
+            case "category":
+              const category = row.getValue(key as string);
+              return category ? (
+                <Badge variant="outline" className="capitalize">
+                  {category as string}
+                </Badge>
+              ) : (
+                "-"
+              );
+
+            default:
+              return <div>{row.getValue(key as string) || "-"}</div>;
+          }
+        },
+        enableSorting: config.sortable !== false,
+        enableHiding: true,
+      } as ColumnDef<T>;
+    });
+
+    // Combine selection column with dynamic columns
+    return [selectionColumn, ...dynamicColumns];
+  }, [transactions, columnConfig, excludeFields]);
+
+  // Generate columns
+  const columns = React.useMemo(() => generateColumns(), [generateColumns]);
+
+  // Handle the edit and delete operations
+  const handleEdit = (row: T, updatedData: Partial<T>) => {
+    if (onEdit) {
+      onEdit(row, updatedData);
+    }
+  };
+
+  const handleDelete = (row: T) => {
+    if (onDelete) {
+      onDelete(row.id);
+    }
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>{title}</CardTitle>
-        {onTransactionAdd && (
+    <div className="space-y-4">
+      {onTransactionAdd && (
+        <div className="flex justify-end mb-2">
           <AddTransaction
-            onTransactionAdd={(parsedData) =>
-              onTransactionAdd(parsedData as UITransaction[])
-            }
+            onTransactionAdd={(parsedData) => {
+              if (onTransactionAdd) {
+                onTransactionAdd(parsedData as unknown as T[]);
+              }
+            }}
           />
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="border rounded-lg">
-          <div className="max-h-[500px] overflow-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 bg-background border-b">
-                <tr>
-                  {tableColumns.map((column, index) => (
-                    <th
-                      key={index}
-                      className={`px-4 py-2 text-${column.align || "left"}`}
-                      style={{ width: column.width }}
-                    >
-                      {column.label}
-                    </th>
-                  ))}
-                  <th className="px-4 py-2 text-right w-24">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length > 0 ? (
-                  transactions.map((row) => (
-                    <tr
-                      key={row.id}
-                      className="border-b last:border-b-0 hover:bg-muted/50"
-                    >
-                      {tableColumns.map((column, index) => {
-                        const key = column.key;
-                        const value = row[key];
-                        const isAmountColumn = key === "amount";
-
-                        return (
-                          <td
-                            key={index}
-                            className={`px-4 py-2 ${
-                              column.align ? `text-${column.align}` : ""
-                            } ${
-                              isAmountColumn && (value as number) < 0
-                                ? "text-destructive"
-                                : isAmountColumn && (value as number) > 0
-                                ? "text-success"
-                                : ""
-                            }`}
-                          >
-                            {renderCell(row, column)}
-                          </td>
-                        );
-                      })}
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex justify-end gap-2">
-                          {editingId === row.id ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditSave(row.id)}
-                                className="h-8 w-8"
-                                title="Save changes"
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleEditCancel}
-                                className="h-8 w-8"
-                                title="Cancel editing"
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditStart(row)}
-                                className="h-8 w-8"
-                                title="Edit transaction"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              {onDelete && (
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => onDelete(row.id)}
-                                  className="h-8 w-8"
-                                  title="Delete transaction"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              )}
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={tableColumns.length + 1}
-                      className="px-4 py-8 text-center text-muted-foreground"
-                    >
-                      No transactions found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
         </div>
-      </CardContent>
-    </Card>
+      )}
+
+      <DataTable
+        columns={columns}
+        data={transactions}
+        title={title}
+        onEdit={onEdit ? handleEdit : undefined}
+        onDelete={onDelete ? handleDelete : undefined}
+      />
+    </div>
   );
 }

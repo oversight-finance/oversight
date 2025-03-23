@@ -1,6 +1,8 @@
 // Account-related type definitions that match the database schema
 
+
 import { BankAccountTransaction } from "@/types/Transaction";
+
 
 /**
  * Aligns with the account_type enum in the database
