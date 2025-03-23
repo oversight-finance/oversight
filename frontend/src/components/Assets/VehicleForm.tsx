@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAssets } from "@/contexts/AssetsContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AssetType } from "@/types/Account";
+import { Vehicle } from "@/types/Vehicle";
 import {
   Select,
   SelectContent,
@@ -111,108 +111,120 @@ const calculateFinancingProgress = (
 export default function VehicleForm() {
   const { addAsset } = useAssets();
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    userId: "user1", // Default user ID
-    type: AssetType.VEHICLE,
-    name: "",
-    purchaseValue: 0,
-    currentValue: 0, // This will be calculated automatically
-    purchaseDate: new Date().toISOString().split("T")[0], // Today's date in YYYY-MM-DD format
-    metadata: {
-      make: "",
-      model: "",
-      year: new Date().getFullYear(),
-      licensePlate: "",
-      vin: "",
-      condition: "good",
-      color: "",
-      mileage: 0,
-      financingType: "cash" as FinancingType,
-      interestRate: 0,
-      monthlyPayment: 0,
-      loanTerm: 0, // in months
-      depreciationRate: 15, // default 15% annual depreciation
-    },
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Initial form data with necessary Vehicle fields
+  const [formData, setFormData] = useState<Partial<Vehicle> & { user_id: string }>({
+    user_id: "user1", // Default user ID
+    make: "",
+    model: "",
+    year: new Date().getFullYear(),
+    purchase_price: 0,
+    current_value: 0,
+    purchase_date: new Date().toISOString().split("T")[0], // Today's date in YYYY-MM-DD format
+    vin: "",
+    currency: "USD",
+  });
+
+  // Additional form fields not part of Vehicle type
+  const [additionalData, setAdditionalData] = useState({
+    licensePlate: "",
+    condition: "good",
+    color: "",
+    mileage: 0,
+    financingType: "cash" as FinancingType,
+    interestRate: 0,
+    monthlyPayment: 0,
+    loanTerm: 0, // in months
+    depreciationRate: 15, // default 15% annual depreciation
   });
 
   // Calculate current value whenever relevant fields change
   useEffect(() => {
     const currentValue = calculateCurrentValue(
-      formData.purchaseValue,
-      formData.purchaseDate,
-      formData.metadata.depreciationRate
+      formData.purchase_price || 0, // Add default value of 0
+      formData.purchase_date || "",
+      additionalData.depreciationRate
     );
 
     setFormData((prev) => ({
       ...prev,
-      currentValue,
+      current_value: currentValue,
     }));
   }, [
-    formData.purchaseValue,
-    formData.purchaseDate,
-    formData.metadata.depreciationRate,
+    formData.purchase_price,
+    formData.purchase_date,
+    additionalData.depreciationRate,
   ]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    // Generate a name if not provided
-    const vehicleName =
-      formData.name ||
-      `${formData.metadata.year} ${formData.metadata.make} ${formData.metadata.model}`;
+    try {
+      // Create a complete Vehicle object with required fields
+      const vehicle: Vehicle = {
+        id: crypto.randomUUID(), // The addAsset will override this
+        user_id: formData.user_id,
+        make: formData.make || "",
+        model: formData.model || "",
+        year: formData.year || new Date().getFullYear(),
+        purchase_price: formData.purchase_price || 0,
+        current_value: formData.current_value || 0,
+        purchase_date: formData.purchase_date || new Date().toISOString().split("T")[0],
+        vin: formData.vin,
+        currency: formData.currency || "USD",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-    // Calculate current value one more time before submitting
-    const currentValue = calculateCurrentValue(
-      formData.purchaseValue,
-      formData.purchaseDate,
-      formData.metadata.depreciationRate
-    );
+      // Add the vehicle as an asset and get the new asset ID
+      const newAssetId = await addAsset(vehicle);
 
-    // Prepare the asset data
-    const assetData = {
-      ...formData,
-      name: vehicleName,
-      currentValue,
-    };
+      if (newAssetId) {
+        // Find and close the dialog using the DialogClose component
+        const closeButton = document.querySelector(
+          "[data-dialog-close]"
+        ) as HTMLButtonElement;
+        if (closeButton) {
+          closeButton.click();
+        }
 
-    // Add the vehicle as an asset and get the new asset ID
-    const newAssetId = addAsset(assetData);
+        // Reset form
+        setFormData({
+          user_id: "user1",
+          make: "",
+          model: "",
+          year: new Date().getFullYear(),
+          purchase_price: 0,
+          current_value: 0,
+          purchase_date: new Date().toISOString().split("T")[0],
+          vin: "",
+          currency: "USD",
+        });
 
-    // Find and close the dialog using the DialogClose component
-    const closeButton = document.querySelector(
-      "[data-dialog-close]"
-    ) as HTMLButtonElement;
-    if (closeButton) {
-      closeButton.click();
+        setAdditionalData({
+          licensePlate: "",
+          condition: "good",
+          color: "",
+          mileage: 0,
+          financingType: "cash" as FinancingType,
+          interestRate: 0,
+          monthlyPayment: 0,
+          loanTerm: 0,
+          depreciationRate: 15,
+        });
+
+        // Redirect to the new vehicle's details page
+        router.push(`/vehicles/${newAssetId}`);
+      } else {
+        console.error("Failed to add vehicle");
+      }
+    } catch (error) {
+      console.error("Error adding vehicle:", error);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Reset form
-    setFormData({
-      userId: "user1",
-      type: AssetType.VEHICLE,
-      name: "",
-      purchaseValue: 0,
-      currentValue: 0,
-      purchaseDate: new Date().toISOString().split("T")[0],
-      metadata: {
-        make: "",
-        model: "",
-        year: new Date().getFullYear(),
-        licensePlate: "",
-        vin: "",
-        condition: "good",
-        color: "",
-        mileage: 0,
-        financingType: "cash" as FinancingType,
-        interestRate: 0,
-        monthlyPayment: 0,
-        loanTerm: 0,
-        depreciationRate: 15,
-      },
-    });
-
-    // Redirect to the new asset's details page
-    router.push(`/assets/${newAssetId}`);
   };
 
   return (
@@ -229,14 +241,11 @@ export default function VehicleForm() {
             </label>
             <Input
               id="make"
-              value={formData.metadata.make}
+              value={formData.make}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    make: e.target.value,
-                  },
+                  make: e.target.value,
                 })
               }
               required
@@ -251,18 +260,15 @@ export default function VehicleForm() {
             </label>
             <Input
               id="model"
-              value={formData.metadata.model}
+              value={formData.model}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    model: e.target.value,
-                  },
+                  model: e.target.value,
                 })
               }
               required
-              placeholder="Camry, Civic, F-150, etc."
+              placeholder="Camry, Accord, F-150, etc."
               className="w-full"
             />
           </div>
@@ -274,383 +280,174 @@ export default function VehicleForm() {
             <Input
               id="year"
               type="number"
-              value={formData.metadata.year}
+              value={formData.year}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    year: Number(e.target.value),
-                  },
+                  year: parseInt(e.target.value) || new Date().getFullYear(),
                 })
               }
               required
-              min={1900}
-              max={new Date().getFullYear() + 1}
-              className="w-full"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="licensePlate" className="text-sm font-medium">
-                License Plate
-              </label>
-              <Input
-                id="licensePlate"
-                value={formData.metadata.licensePlate}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      licensePlate: e.target.value,
-                    },
-                  })
-                }
-                placeholder="Optional"
-                className="w-full"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label htmlFor="vin" className="text-sm font-medium">
-                VIN
-              </label>
-              <Input
-                id="vin"
-                value={formData.metadata.vin}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      vin: e.target.value,
-                    },
-                  })
-                }
-                placeholder="Optional"
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="color" className="text-sm font-medium">
-              Color
-            </label>
-            <Input
-              id="color"
-              value={formData.metadata.color}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    color: e.target.value,
-                  },
-                })
-              }
-              placeholder="Optional"
+              placeholder="2023"
               className="w-full"
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="mileage" className="text-sm font-medium">
-              Mileage
-            </label>
-            <Input
-              id="mileage"
-              type="number"
-              value={formData.metadata.mileage}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    mileage: Number(e.target.value),
-                  },
-                })
-              }
-              min={0}
-              placeholder="Optional"
-              className="w-full"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="purchaseDate" className="text-sm font-medium">
-              Purchase Date
-            </label>
-            <Input
-              id="purchaseDate"
-              type="date"
-              value={formData.purchaseDate}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  purchaseDate: e.target.value,
-                })
-              }
-              required
-              className="w-full"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="purchaseValue" className="text-sm font-medium">
+            <label htmlFor="purchase_price" className="text-sm font-medium">
               Purchase Price
             </label>
             <Input
-              id="purchaseValue"
+              id="purchase_price"
               type="number"
-              value={formData.purchaseValue}
+              value={formData.purchase_price || ""}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  purchaseValue: Number(e.target.value),
+                  purchase_price: parseFloat(e.target.value) || 0,
                 })
               }
               required
-              min={0}
+              placeholder="25000"
               className="w-full"
             />
+            <p className="text-xs text-muted-foreground">
+              Enter the amount you paid for this vehicle
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="purchase_date" className="text-sm font-medium">
+              Purchase Date
+            </label>
+            <Input
+              id="purchase_date"
+              type="date"
+              value={formData.purchase_date}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  purchase_date: e.target.value,
+                })
+              }
+              required
+              className="w-full"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="vin" className="text-sm font-medium">
+              VIN (Vehicle Identification Number)
+            </label>
+            <Input
+              id="vin"
+              value={formData.vin || ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  vin: e.target.value,
+                })
+              }
+              placeholder="1HGCM82633A123456"
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional: Enter the VIN for your vehicle
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="licensePlate" className="text-sm font-medium">
+              License Plate
+            </label>
+            <Input
+              id="licensePlate"
+              value={additionalData.licensePlate}
+              onChange={(e) =>
+                setAdditionalData({
+                  ...additionalData,
+                  licensePlate: e.target.value,
+                })
+              }
+              placeholder="ABC-1234"
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Optional: Enter the license plate for your vehicle
+            </p>
           </div>
 
           <div className="space-y-2">
             <label htmlFor="depreciationRate" className="text-sm font-medium">
-              Annual Depreciation Rate (%)
+              Depreciation Rate (% per year)
             </label>
             <Input
               id="depreciationRate"
               type="number"
-              value={formData.metadata.depreciationRate}
+              min="0"
+              max="50"
+              step="0.1"
+              value={additionalData.depreciationRate}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    depreciationRate: Number(e.target.value),
-                  },
+                setAdditionalData({
+                  ...additionalData,
+                  depreciationRate: parseFloat(e.target.value) || 15,
                 })
               }
-              required
-              min={0}
-              max={100}
               className="w-full"
             />
-          </div>
-
-          {/* Display calculated current value */}
-          <div className="p-4 bg-muted rounded-md">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">
-                Estimated Current Value:
-              </span>
-              <span className="text-lg font-bold">
-                {formatTotalAmount(formData.currentValue)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Based on {formData.metadata.depreciationRate}% annual depreciation
-              over{" "}
-              {(
-                (new Date().getTime() -
-                  new Date(formData.purchaseDate).getTime()) /
-                (1000 * 60 * 60 * 24 * 365.25)
-              ).toFixed(1)}{" "}
-              years
+            <p className="text-xs text-muted-foreground">
+              Average vehicle depreciation is around 15-20% per year
             </p>
           </div>
 
-          {/* Display financing progress when applicable */}
-          {formData.metadata.financingType !== "cash" &&
-            formData.metadata.monthlyPayment > 0 && (
-              <div className="p-4 bg-muted rounded-md space-y-2">
-                {(() => {
-                  const progress = calculateFinancingProgress(
-                    formData.purchaseDate,
-                    formData.metadata.monthlyPayment,
-                    formData.metadata.interestRate,
-                    formData.metadata.loanTerm,
-                    formData.purchaseValue
-                  );
-
-                  return (
-                    <>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">
-                          Financing Progress
-                        </span>
-                        <span className="text-sm">
-                          {progress.monthsPaid} of {formData.metadata.loanTerm}{" "}
-                          months
-                        </span>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-sm">
-                          <span>Total Paid:</span>
-                          <span>{formatTotalAmount(progress.totalPaid)}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Principal Paid:</span>
-                          <span>
-                            {formatTotalAmount(progress.principalPaid)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span>Interest Paid:</span>
-                          <span>
-                            {formatTotalAmount(progress.interestPaid)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between text-sm font-medium">
-                          <span>Remaining Balance:</span>
-                          <span>
-                            {formatTotalAmount(progress.remainingBalance)}
-                          </span>
-                        </div>
-                      </div>
-                    </>
-                  );
-                })()}
-              </div>
-            )}
-
           <div className="space-y-2">
-            <label className="text-sm font-medium">Financing Type</label>
-            <Select
-              value={formData.metadata.financingType}
-              onValueChange={(value: string) =>
-                setFormData({
-                  ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    financingType: value as FinancingType,
-                  },
-                })
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select financing type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="cash">Cash</SelectItem>
-                <SelectItem value="finance">Finance</SelectItem>
-                <SelectItem value="lease">Lease</SelectItem>
-              </SelectContent>
-            </Select>
+            <label htmlFor="current_value" className="text-sm font-medium">
+              Current Value (Estimated)
+            </label>
+            <Input
+              id="current_value"
+              value={formatTotalAmount(formData.current_value || 0)}
+              readOnly
+              className="w-full bg-muted"
+            />
+            <p className="text-xs text-muted-foreground">
+              Calculated based on purchase price, date, and depreciation rate
+            </p>
           </div>
 
-          {formData.metadata.financingType !== "cash" && (
-            <>
-              <div className="space-y-2">
-                <label htmlFor="interestRate" className="text-sm font-medium">
-                  Interest Rate (%)
-                </label>
-                <Input
-                  id="interestRate"
-                  type="number"
-                  step="0.01"
-                  value={formData.metadata.interestRate}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      metadata: {
-                        ...formData.metadata,
-                        interestRate: Number(e.target.value),
-                      },
-                    })
-                  }
-                  min={0}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="monthlyPayment" className="text-sm font-medium">
-                  Monthly Payment
-                </label>
-                <Input
-                  id="monthlyPayment"
-                  type="number"
-                  step="0.01"
-                  value={formData.metadata.monthlyPayment}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      metadata: {
-                        ...formData.metadata,
-                        monthlyPayment: Number(e.target.value),
-                      },
-                    })
-                  }
-                  min={0}
-                  className="w-full"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label htmlFor="loanTerm" className="text-sm font-medium">
-                  {formData.metadata.financingType === "finance"
-                    ? "Loan Term (months)"
-                    : "Lease Term (months)"}
-                </label>
-                <Input
-                  id="loanTerm"
-                  type="number"
-                  value={formData.metadata.loanTerm}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      metadata: {
-                        ...formData.metadata,
-                        loanTerm: Number(e.target.value),
-                      },
-                    })
-                  }
-                  min={0}
-                  className="w-full"
-                />
-              </div>
-            </>
-          )}
-
           <div className="space-y-2">
-            <label htmlFor="condition" className="text-sm font-medium">
-              Condition
+            <label htmlFor="currency" className="text-sm font-medium">
+              Currency
             </label>
             <Select
-              value={formData.metadata.condition}
+              value={formData.currency}
               onValueChange={(value) =>
                 setFormData({
                   ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    condition: value,
-                  },
+                  currency: value,
                 })
               }
             >
-              <SelectTrigger id="condition" className="w-full">
-                <SelectValue placeholder="Select condition" />
+              <SelectTrigger id="currency">
+                <SelectValue placeholder="Select Currency" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="excellent">Excellent</SelectItem>
-                <SelectItem value="good">Good</SelectItem>
-                <SelectItem value="fair">Fair</SelectItem>
-                <SelectItem value="poor">Poor</SelectItem>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="CAD">CAD ($)</SelectItem>
+                <SelectItem value="EUR">EUR (€)</SelectItem>
+                <SelectItem value="GBP">GBP (£)</SelectItem>
+                <SelectItem value="JPY">JPY (¥)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-        </form>
-      </div>
 
-      <div className="sticky bottom-0 pt-4 pb-4 px-4 bg-background border-t mt-4">
-        <Button type="submit" form="vehicle-form" className="w-full">
-          Add Vehicle
-        </Button>
+          <div className="flex justify-end pt-4">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Adding..." : "Add Vehicle"}
+            </Button>
+          </div>
+        </form>
       </div>
     </div>
   );

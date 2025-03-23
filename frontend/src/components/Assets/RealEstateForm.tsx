@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAssets } from "@/contexts/AssetsContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { AssetType } from "@/types/Account";
+import { RealEstate } from "@/types/RealEstate";
 import {
   Select,
   SelectContent,
@@ -115,126 +115,168 @@ const calculateFinancingProgress = (
   };
 };
 
+// Create an address formatter helper
+const formatFullAddress = (address: string, city: string, state: string, zipCode: string, country: string): string => {
+  return `${address}, ${city}, ${state} ${zipCode}, ${country}`;
+};
+
 export default function RealEstateForm() {
   const { addAsset } = useAssets();
   const router = useRouter();
-  const [formData, setFormData] = useState({
-    userId: "user1", // Default user ID
-    type: AssetType.REAL_ESTATE,
-    name: "",
-    purchaseValue: 0,
-    currentValue: 0, // This will be calculated automatically
-    purchaseDate: new Date().toISOString().split("T")[0], // Today's date in YYYY-MM-DD format
-    metadata: {
-      propertyType: "single_family" as PropertyType,
-      address: {
-        street: "",
-        city: "",
-        state: "",
-        zipCode: "",
-        country: "USA",
-      },
-      squareFeet: 0,
-      bedrooms: 0,
-      bathrooms: 0,
-      yearBuilt: 0,
-      lotSize: 0, // in acres
-      propertyTax: 0, // annual
-      insuranceCost: 0, // annual
-      maintenanceCost: 0, // annual
-      rentalIncome: 0, // monthly
-      financingType: "cash" as FinancingType,
-      interestRate: 0,
-      monthlyPayment: 0,
-      loanTerm: 0, // in months
-      appreciationRate: 3, // default 3% annual appreciation
-    },
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Address components for the form
+  const [addressComponents, setAddressComponents] = useState({
+    street: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "USA",
+  });
+  
+  // Initial form data with necessary RealEstate fields
+  const [formData, setFormData] = useState<Partial<RealEstate> & { user_id: string }>({
+    user_id: "user1", // Default user ID
+    property_type: "single_family" as PropertyType,
+    address: "",
+    purchase_price: 0,
+    current_value: 0,
+    purchase_date: new Date().toISOString().split("T")[0], // Today's date in YYYY-MM-DD format
+    mortgage_balance: 0,
+    currency: "USD",
+  });
+
+  // Update the address whenever address components change
+  useEffect(() => {
+    const fullAddress = formatFullAddress(
+      addressComponents.street,
+      addressComponents.city,
+      addressComponents.state,
+      addressComponents.zipCode,
+      addressComponents.country
+    );
+    
+    setFormData(prev => ({
+      ...prev,
+      address: fullAddress
+    }));
+  }, [addressComponents]);
+
+  // Additional form fields not part of RealEstate type
+  const [additionalData, setAdditionalData] = useState({
+    square_feet: 0,
+    bedrooms: 0,
+    bathrooms: 0,
+    year_built: 0,
+    lot_size: 0, // in acres
+    property_tax: 0, // annual
+    insurance_cost: 0, // annual
+    maintenance_cost: 0, // annual
+    rental_income: 0, // monthly
+    financing_type: "cash" as FinancingType,
+    interest_rate: 0,
+    monthly_payment: 0,
+    loan_term: 0, // in months
+    appreciation_rate: 3, // default 3% annual appreciation
   });
 
   // Calculate current value whenever relevant fields change
   useEffect(() => {
     const currentValue = calculateCurrentValue(
-      formData.purchaseValue,
-      formData.purchaseDate,
-      formData.metadata.appreciationRate
+      formData.purchase_price || 0,
+      formData.purchase_date || "",
+      additionalData.appreciation_rate
     );
 
     setFormData((prev) => ({
       ...prev,
-      currentValue,
+      current_value: currentValue,
     }));
   }, [
-    formData.purchaseValue,
-    formData.purchaseDate,
-    formData.metadata.appreciationRate,
+    formData.purchase_price,
+    formData.purchase_date,
+    additionalData.appreciation_rate,
   ]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    // Generate a name if not provided
-    const propertyName =
-      formData.name ||
-      `${formData.metadata.address.street}, ${formData.metadata.address.city}`;
+    try {
+      // Create a complete RealEstate object with required fields
+      const realEstate: RealEstate = {
+        id: crypto.randomUUID(), // The addAsset will override this
+        user_id: formData.user_id || "user1",
+        property_type: formData.property_type || "single_family",
+        address: formData.address || "",
+        purchase_price: formData.purchase_price || 0,
+        current_value: formData.current_value || 0,
+        purchase_date: formData.purchase_date || new Date().toISOString().split("T")[0],
+        mortgage_balance: formData.mortgage_balance || 0,
+        currency: formData.currency || "USD",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
 
-    // Calculate current value one more time before submitting
-    const currentValue = calculateCurrentValue(
-      formData.purchaseValue,
-      formData.purchaseDate,
-      formData.metadata.appreciationRate
-    );
+      // Add the property as an asset and get the new asset ID
+      const newAssetId = await addAsset(realEstate);
 
-    // Add the property as an asset and get the new asset ID
-    const newAssetId = addAsset({
-      ...formData,
-      name: propertyName,
-      currentValue,
-    });
+      if (newAssetId) {
+        // Find and close the dialog using the DialogClose component
+        const closeButton = document.querySelector(
+          "[data-dialog-close]"
+        ) as HTMLButtonElement;
+        if (closeButton) {
+          closeButton.click();
+        }
 
-    // Find and close the dialog using the DialogClose component
-    const closeButton = document.querySelector(
-      "[data-dialog-close]"
-    ) as HTMLButtonElement;
-    if (closeButton) {
-      closeButton.click();
-    }
+        // Reset form
+        setFormData({
+          user_id: "user1",
+          property_type: "single_family" as PropertyType,
+          address: "",
+          purchase_price: 0,
+          current_value: 0,
+          purchase_date: new Date().toISOString().split("T")[0],
+          mortgage_balance: 0,
+          currency: "USD",
+        });
 
-    // Reset form
-    setFormData({
-      userId: "user1",
-      type: AssetType.REAL_ESTATE,
-      name: "",
-      purchaseValue: 0,
-      currentValue: 0,
-      purchaseDate: new Date().toISOString().split("T")[0],
-      metadata: {
-        propertyType: "single_family" as PropertyType,
-        address: {
+        setAddressComponents({
           street: "",
           city: "",
           state: "",
           zipCode: "",
           country: "USA",
-        },
-        squareFeet: 0,
-        bedrooms: 0,
-        bathrooms: 0,
-        yearBuilt: 0,
-        lotSize: 0,
-        propertyTax: 0,
-        insuranceCost: 0,
-        maintenanceCost: 0,
-        rentalIncome: 0,
-        financingType: "cash" as FinancingType,
-        interestRate: 0,
-        monthlyPayment: 0,
-        loanTerm: 0,
-        appreciationRate: 3,
-      },
-    });
+        });
 
-    // Redirect to the new asset's details page
-    router.push(`/assets/${newAssetId}`);
+        setAdditionalData({
+          square_feet: 0,
+          bedrooms: 0,
+          bathrooms: 0,
+          year_built: 0,
+          lot_size: 0,
+          property_tax: 0,
+          insurance_cost: 0,
+          maintenance_cost: 0,
+          rental_income: 0,
+          financing_type: "cash" as FinancingType,
+          interest_rate: 0,
+          monthly_payment: 0,
+          loan_term: 0,
+          appreciation_rate: 3,
+        });
+
+        // Redirect to the new property's details page
+        router.push(`/real-estate/${newAssetId}`);
+      } else {
+        console.error("Failed to add real estate property");
+      }
+    } catch (error) {
+      console.error("Error adding real estate property:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -246,32 +288,27 @@ export default function RealEstateForm() {
           className="space-y-6 py-2"
         >
           <div className="space-y-2">
-            <label htmlFor="propertyType" className="text-sm font-medium">
+            <label htmlFor="property_type" className="text-sm font-medium">
               Property Type
             </label>
             <Select
-              value={formData.metadata.propertyType}
+              value={formData.property_type}
               onValueChange={(value: PropertyType) =>
                 setFormData({
                   ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    propertyType: value,
-                  },
+                  property_type: value,
                 })
               }
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Select property type" />
+              <SelectTrigger id="property_type">
+                <SelectValue placeholder="Select Property Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="single_family">
-                  Single Family Home
-                </SelectItem>
+                <SelectItem value="single_family">Single Family Home</SelectItem>
                 <SelectItem value="multi_family">Multi-Family</SelectItem>
                 <SelectItem value="condo">Condominium</SelectItem>
                 <SelectItem value="townhouse">Townhouse</SelectItem>
-                <SelectItem value="commercial">Commercial</SelectItem>
+                <SelectItem value="commercial">Commercial Property</SelectItem>
                 <SelectItem value="land">Land</SelectItem>
               </SelectContent>
             </Select>
@@ -283,17 +320,11 @@ export default function RealEstateForm() {
             </label>
             <Input
               id="street"
-              value={formData.metadata.address.street}
+              value={addressComponents.street}
               onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    address: {
-                      ...formData.metadata.address,
-                      street: e.target.value,
-                    },
-                  },
+                setAddressComponents({
+                  ...addressComponents,
+                  street: e.target.value,
                 })
               }
               required
@@ -309,45 +340,34 @@ export default function RealEstateForm() {
               </label>
               <Input
                 id="city"
-                value={formData.metadata.address.city}
+                value={addressComponents.city}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      address: {
-                        ...formData.metadata.address,
-                        city: e.target.value,
-                      },
-                    },
+                  setAddressComponents({
+                    ...addressComponents,
+                    city: e.target.value,
                   })
                 }
                 required
-                placeholder="City"
+                placeholder="Anytown"
                 className="w-full"
               />
             </div>
+
             <div className="space-y-2">
               <label htmlFor="state" className="text-sm font-medium">
                 State
               </label>
               <Input
                 id="state"
-                value={formData.metadata.address.state}
+                value={addressComponents.state}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      address: {
-                        ...formData.metadata.address,
-                        state: e.target.value,
-                      },
-                    },
+                  setAddressComponents({
+                    ...addressComponents,
+                    state: e.target.value,
                   })
                 }
                 required
-                placeholder="State"
+                placeholder="CA"
                 className="w-full"
               />
             </div>
@@ -360,539 +380,174 @@ export default function RealEstateForm() {
               </label>
               <Input
                 id="zipCode"
-                value={formData.metadata.address.zipCode}
+                value={addressComponents.zipCode}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      address: {
-                        ...formData.metadata.address,
-                        zipCode: e.target.value,
-                      },
-                    },
+                  setAddressComponents({
+                    ...addressComponents,
+                    zipCode: e.target.value,
                   })
                 }
                 required
-                placeholder="Zip Code"
+                placeholder="12345"
                 className="w-full"
               />
             </div>
+
             <div className="space-y-2">
               <label htmlFor="country" className="text-sm font-medium">
                 Country
               </label>
               <Input
                 id="country"
-                value={formData.metadata.address.country}
+                value={addressComponents.country}
                 onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      address: {
-                        ...formData.metadata.address,
-                        country: e.target.value,
-                      },
-                    },
+                  setAddressComponents({
+                    ...addressComponents,
+                    country: e.target.value,
                   })
                 }
-                placeholder="Country"
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="squareFeet" className="text-sm font-medium">
-                Square Feet
-              </label>
-              <Input
-                id="squareFeet"
-                type="number"
-                value={formData.metadata.squareFeet || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      squareFeet: Number(e.target.value),
-                    },
-                  })
-                }
-                min={0}
-                placeholder="Square Feet"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="yearBuilt" className="text-sm font-medium">
-                Year Built
-              </label>
-              <Input
-                id="yearBuilt"
-                type="number"
-                value={formData.metadata.yearBuilt || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      yearBuilt: Number(e.target.value),
-                    },
-                  })
-                }
-                min={1800}
-                max={new Date().getFullYear()}
-                placeholder="Year Built"
-                className="w-full"
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="bedrooms" className="text-sm font-medium">
-                Bedrooms
-              </label>
-              <Input
-                id="bedrooms"
-                type="number"
-                value={formData.metadata.bedrooms || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      bedrooms: Number(e.target.value),
-                    },
-                  })
-                }
-                min={0}
-                placeholder="Bedrooms"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="bathrooms" className="text-sm font-medium">
-                Bathrooms
-              </label>
-              <Input
-                id="bathrooms"
-                type="number"
-                value={formData.metadata.bathrooms || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      bathrooms: Number(e.target.value),
-                    },
-                  })
-                }
-                min={0}
-                step={0.5}
-                placeholder="Bathrooms"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="lotSize" className="text-sm font-medium">
-                Lot Size (acres)
-              </label>
-              <Input
-                id="lotSize"
-                type="number"
-                value={formData.metadata.lotSize || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      lotSize: Number(e.target.value),
-                    },
-                  })
-                }
-                min={0}
-                step={0.01}
-                placeholder="Lot Size"
+                required
+                placeholder="USA"
                 className="w-full"
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="purchaseValue" className="text-sm font-medium">
+            <label htmlFor="purchase_price" className="text-sm font-medium">
               Purchase Price
             </label>
             <Input
-              id="purchaseValue"
+              id="purchase_price"
               type="number"
-              value={formData.purchaseValue || ""}
+              value={formData.purchase_price || ""}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  purchaseValue: Number(e.target.value),
+                  purchase_price: parseFloat(e.target.value) || 0,
                 })
               }
               required
-              min={0}
-              placeholder="Purchase Price"
+              placeholder="250000"
               className="w-full"
             />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="purchaseDate" className="text-sm font-medium">
-              Purchase Date
-            </label>
-            <Input
-              id="purchaseDate"
-              type="date"
-              value={formData.purchaseDate}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  purchaseDate: e.target.value,
-                })
-              }
-              required
-              className="w-full"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="appreciationRate" className="text-sm font-medium">
-              Annual Appreciation Rate (%)
-            </label>
-            <Input
-              id="appreciationRate"
-              type="number"
-              value={formData.metadata.appreciationRate || ""}
-              onChange={(e) =>
-                setFormData({
-                  ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    appreciationRate: Number(e.target.value),
-                  },
-                })
-              }
-              min={-10}
-              max={20}
-              step={0.1}
-              placeholder="Annual Appreciation Rate"
-              className="w-full"
-            />
-          </div>
-
-          {/* Display calculated current value */}
-          <div className="p-4 bg-muted rounded-md">
-            <div className="flex justify-between items-center">
-              <span className="text-sm font-medium">
-                Estimated Current Value:
-              </span>
-              <span className="text-lg font-bold">
-                {formatTotalAmount(formData.currentValue)}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Based on {formData.metadata.appreciationRate}% annual appreciation
-              over{" "}
-              {(
-                (new Date().getTime() -
-                  new Date(formData.purchaseDate).getTime()) /
-                (1000 * 60 * 60 * 24 * 365.25)
-              ).toFixed(1)}{" "}
-              years
+            <p className="text-xs text-muted-foreground">
+              Enter the amount you paid for this property
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
-            <div className="space-y-2">
-              <label htmlFor="propertyTax" className="text-sm font-medium">
-                Annual Property Tax
-              </label>
-              <Input
-                id="propertyTax"
-                type="number"
-                value={formData.metadata.propertyTax || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      propertyTax: Number(e.target.value),
-                    },
-                  })
-                }
-                min={0}
-                placeholder="Annual Property Tax"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="insuranceCost" className="text-sm font-medium">
-                Annual Insurance
-              </label>
-              <Input
-                id="insuranceCost"
-                type="number"
-                value={formData.metadata.insuranceCost || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      insuranceCost: Number(e.target.value),
-                    },
-                  })
-                }
-                min={0}
-                placeholder="Annual Insurance"
-                className="w-full"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="maintenanceCost" className="text-sm font-medium">
-                Annual Maintenance
-              </label>
-              <Input
-                id="maintenanceCost"
-                type="number"
-                value={formData.metadata.maintenanceCost || ""}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    metadata: {
-                      ...formData.metadata,
-                      maintenanceCost: Number(e.target.value),
-                    },
-                  })
-                }
-                min={0}
-                placeholder="Annual Maintenance"
-                className="w-full"
-              />
-            </div>
-          </div>
-
           <div className="space-y-2">
-            <label htmlFor="rentalIncome" className="text-sm font-medium">
-              Monthly Rental Income (if applicable)
+            <label htmlFor="purchase_date" className="text-sm font-medium">
+              Purchase Date
             </label>
             <Input
-              id="rentalIncome"
-              type="number"
-              value={formData.metadata.rentalIncome || ""}
+              id="purchase_date"
+              type="date"
+              value={formData.purchase_date || ""}
               onChange={(e) =>
                 setFormData({
                   ...formData,
-                  metadata: {
-                    ...formData.metadata,
-                    rentalIncome: Number(e.target.value),
-                  },
+                  purchase_date: e.target.value,
                 })
               }
-              min={0}
-              placeholder="Monthly Rental Income"
+              required
               className="w-full"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Financing Type</label>
-            <div className="flex space-x-4">
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={formData.metadata.financingType === "cash"}
-                  onChange={() =>
-                    setFormData({
-                      ...formData,
-                      metadata: {
-                        ...formData.metadata,
-                        financingType: "cash",
-                      },
-                    })
-                  }
-                  className="h-4 w-4"
-                />
-                <span>Cash</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={formData.metadata.financingType === "mortgage"}
-                  onChange={() =>
-                    setFormData({
-                      ...formData,
-                      metadata: {
-                        ...formData.metadata,
-                        financingType: "mortgage",
-                      },
-                    })
-                  }
-                  className="h-4 w-4"
-                />
-                <span>Mortgage</span>
-              </label>
-              <label className="flex items-center space-x-2 cursor-pointer">
-                <input
-                  type="radio"
-                  checked={formData.metadata.financingType === "heloc"}
-                  onChange={() =>
-                    setFormData({
-                      ...formData,
-                      metadata: {
-                        ...formData.metadata,
-                        financingType: "heloc",
-                      },
-                    })
-                  }
-                  className="h-4 w-4"
-                />
-                <span>HELOC</span>
-              </label>
-            </div>
+            <label htmlFor="mortgage_balance" className="text-sm font-medium">
+              Mortgage Balance
+            </label>
+            <Input
+              id="mortgage_balance"
+              type="number"
+              value={formData.mortgage_balance || ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  mortgage_balance: parseFloat(e.target.value) || 0,
+                })
+              }
+              placeholder="200000"
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Current outstanding mortgage balance (if any)
+            </p>
           </div>
 
-          {formData.metadata.financingType !== "cash" && (
-            <>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label htmlFor="interestRate" className="text-sm font-medium">
-                    Interest Rate (%)
-                  </label>
-                  <Input
-                    id="interestRate"
-                    type="number"
-                    value={formData.metadata.interestRate || ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        metadata: {
-                          ...formData.metadata,
-                          interestRate: Number(e.target.value),
-                        },
-                      })
-                    }
-                    min={0}
-                    step={0.01}
-                    placeholder="Interest Rate"
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label
-                    htmlFor="monthlyPayment"
-                    className="text-sm font-medium"
-                  >
-                    Monthly Payment
-                  </label>
-                  <Input
-                    id="monthlyPayment"
-                    type="number"
-                    value={formData.metadata.monthlyPayment || ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        metadata: {
-                          ...formData.metadata,
-                          monthlyPayment: Number(e.target.value),
-                        },
-                      })
-                    }
-                    min={0}
-                    placeholder="Monthly Payment"
-                    className="w-full"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label htmlFor="loanTerm" className="text-sm font-medium">
-                    Loan Term (months)
-                  </label>
-                  <Input
-                    id="loanTerm"
-                    type="number"
-                    value={formData.metadata.loanTerm || ""}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        metadata: {
-                          ...formData.metadata,
-                          loanTerm: Number(e.target.value),
-                        },
-                      })
-                    }
-                    min={0}
-                    placeholder="Loan Term in Months"
-                    className="w-full"
-                  />
-                </div>
-              </div>
+          <div className="space-y-2">
+            <label htmlFor="appreciation_rate" className="text-sm font-medium">
+              Appreciation Rate (% per year)
+            </label>
+            <Input
+              id="appreciation_rate"
+              type="number"
+              min="0"
+              max="20"
+              step="0.1"
+              value={additionalData.appreciation_rate}
+              onChange={(e) =>
+                setAdditionalData({
+                  ...additionalData,
+                  appreciation_rate: parseFloat(e.target.value) || 3,
+                })
+              }
+              className="w-full"
+            />
+            <p className="text-xs text-muted-foreground">
+              Average real estate appreciation is around 3-5% per year
+            </p>
+          </div>
 
-              {/* Display financing progress when applicable */}
-              {formData.metadata.monthlyPayment > 0 && (
-                <div className="p-4 bg-muted rounded-md space-y-2">
-                  {(() => {
-                    const progress = calculateFinancingProgress(
-                      formData.purchaseDate,
-                      formData.metadata.monthlyPayment,
-                      formData.metadata.interestRate,
-                      formData.metadata.loanTerm,
-                      formData.purchaseValue
-                    );
+          <div className="space-y-2">
+            <label htmlFor="current_value" className="text-sm font-medium">
+              Current Value (Estimated)
+            </label>
+            <Input
+              id="current_value"
+              value={formatTotalAmount(formData.current_value || 0)}
+              readOnly
+              className="w-full bg-muted"
+            />
+            <p className="text-xs text-muted-foreground">
+              Calculated based on purchase price, date, and appreciation rate
+            </p>
+          </div>
 
-                    return (
-                      <>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium">
-                            Financing Progress
-                          </span>
-                          <span className="text-sm">
-                            {progress.monthsPaid} of{" "}
-                            {formData.metadata.loanTerm} months
-                          </span>
-                        </div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between text-sm">
-                            <span>Total Paid:</span>
-                            <span>{formatTotalAmount(progress.totalPaid)}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span>Principal Paid:</span>
-                            <span>
-                              {formatTotalAmount(progress.principalPaid)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span>Interest Paid:</span>
-                            <span>
-                              {formatTotalAmount(progress.interestPaid)}
-                            </span>
-                          </div>
-                          <div className="flex justify-between text-sm font-medium">
-                            <span>Remaining Balance:</span>
-                            <span>
-                              {formatTotalAmount(progress.remainingBalance)}
-                            </span>
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
-              )}
-            </>
-          )}
+          <div className="space-y-2">
+            <label htmlFor="currency" className="text-sm font-medium">
+              Currency
+            </label>
+            <Select
+              value={formData.currency || "USD"}
+              onValueChange={(value) =>
+                setFormData({
+                  ...formData,
+                  currency: value,
+                })
+              }
+            >
+              <SelectTrigger id="currency">
+                <SelectValue placeholder="Select Currency" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="USD">USD ($)</SelectItem>
+                <SelectItem value="CAD">CAD ($)</SelectItem>
+                <SelectItem value="EUR">EUR (€)</SelectItem>
+                <SelectItem value="GBP">GBP (£)</SelectItem>
+                <SelectItem value="JPY">JPY (¥)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button type="submit" className="w-full" disabled={isSubmitting}>
+              {isSubmitting ? "Adding..." : "Add Property"}
+            </Button>
+          </div>
         </form>
-      </div>
-      <div className="flex justify-end px-4 pb-4">
-        <Button type="submit" form="real-estate-form">
-          Add Property
-        </Button>
       </div>
     </div>
   );

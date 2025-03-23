@@ -2,7 +2,8 @@
 
 import { useAssets } from "@/contexts/AssetsContext";
 import { useAccounts } from "@/contexts/AccountsContext";
-import { Asset, AssetType } from "@/types/Asset";
+import { Vehicle } from "@/types/Vehicle";
+import { RealEstate } from "@/types/RealEstate";
 import {
   PlusCircle,
   Coins,
@@ -33,6 +34,14 @@ import BankForm from "@/components/LinkedAccounts/BankForm";
 import { Account, AccountType, BankAccount } from "@/types/Account";
 import { fetchBankAccounts } from "@/database/BankAccounts";
 import React from "react";
+
+// Define asset types as string literals
+export enum AssetType {
+  CRYPTO = "crypto",
+  STOCK = "stock",
+  REAL_ESTATE = "real_estate",
+  VEHICLE = "vehicle",
+}
 
 const assetTypeIcons = {
   [AssetType.CRYPTO]: <Coins className="h-4 w-4" />,
@@ -99,6 +108,10 @@ export function AssetsSidebar() {
     []
   );
 
+  // Split assets into vehicles and real estate
+  const vehicles = assets.filter((asset): asset is Vehicle => 'make' in asset);
+  const realEstate = assets.filter((asset): asset is RealEstate => 'address' in asset);
+
   // Fetch additional details for bank accounts
   useEffect(() => {
     const fetchBankDetails = async () => {
@@ -156,11 +169,6 @@ export function AssetsSidebar() {
   const closeDialog = () => {
     setDialogState((prev) => ({ ...prev, isOpen: false }));
   };
-
-  const groupedAssets = Object.values(AssetType).reduce((acc, type) => {
-    acc[type] = assets.filter((asset) => asset.type === type);
-    return acc;
-  }, {} as Record<AssetType, Asset[]>);
 
   const groupedAccounts = Object.values(AccountType).reduce((acc, type) => {
     acc[type] = enhancedAccounts.filter(
@@ -287,13 +295,13 @@ export function AssetsSidebar() {
               <span>{assetTypeLabels[AssetType.VEHICLE]}</span>
             </div>
             <span className="text-xs text-muted-foreground">
-              {groupedAssets[AssetType.VEHICLE].length}
+              {vehicles.length}
             </span>
           </SidebarMenuButton>
 
           {openSections.includes(AssetType.VEHICLE) && (
             <SidebarMenuSub>
-              {groupedAssets[AssetType.VEHICLE].length === 0 ? (
+              {vehicles.length === 0 ? (
                 <SidebarMenuSubButton
                   onClick={() => handleAddAsset(AssetType.VEHICLE)}
                   className="italic text-muted-foreground"
@@ -303,16 +311,18 @@ export function AssetsSidebar() {
                 </SidebarMenuSubButton>
               ) : (
                 <React.Fragment>
-                  {groupedAssets[AssetType.VEHICLE].map((asset) => (
+                  {vehicles.map((vehicle) => (
                     <SidebarMenuSubButton
-                      key={asset.id}
-                      onClick={() => router.push(`/assets/${asset.id}`)}
+                      key={vehicle.id}
+                      onClick={() => router.push(`/vehicles/${vehicle.id}`)}
                       className="py-2 h-auto"
                     >
                       <div className="flex flex-col items-start gap-1 w-full">
-                        <span className="leading-none">{asset.name}</span>
+                        <span className="leading-none">
+                          {vehicle.make} {vehicle.model} ({vehicle.year})
+                        </span>
                         <span className="text-xs text-muted-foreground leading-none">
-                          {formatTotalAmount(asset.current_value || 0)}
+                          {formatTotalAmount(vehicle.current_value || 0)}
                         </span>
                       </div>
                     </SidebarMenuSubButton>
@@ -341,13 +351,13 @@ export function AssetsSidebar() {
               <span>{assetTypeLabels[AssetType.REAL_ESTATE]}</span>
             </div>
             <span className="text-xs text-muted-foreground">
-              {groupedAssets[AssetType.REAL_ESTATE].length}
+              {realEstate.length}
             </span>
           </SidebarMenuButton>
 
           {openSections.includes(AssetType.REAL_ESTATE) && (
             <SidebarMenuSub>
-              {groupedAssets[AssetType.REAL_ESTATE].length === 0 ? (
+              {realEstate.length === 0 ? (
                 <SidebarMenuSubButton
                   onClick={() => handleAddAsset(AssetType.REAL_ESTATE)}
                   className="italic text-muted-foreground"
@@ -357,16 +367,18 @@ export function AssetsSidebar() {
                 </SidebarMenuSubButton>
               ) : (
                 <React.Fragment>
-                  {groupedAssets[AssetType.REAL_ESTATE].map((asset) => (
+                  {realEstate.map((property) => (
                     <SidebarMenuSubButton
-                      key={asset.id}
-                      onClick={() => router.push(`/assets/${asset.id}`)}
+                      key={property.id}
+                      onClick={() => router.push(`/real-estate/${property.id}`)}
                       className="py-2 h-auto"
                     >
                       <div className="flex flex-col items-start gap-1 w-full">
-                        <span className="leading-none">{asset.name}</span>
+                        <span className="leading-none">
+                          {property.property_type}: {property.address}
+                        </span>
                         <span className="text-xs text-muted-foreground leading-none">
-                          {formatTotalAmount(asset.current_value || 0)}
+                          {formatTotalAmount(property.current_value)}
                         </span>
                       </div>
                     </SidebarMenuSubButton>
@@ -423,7 +435,7 @@ export function AssetsSidebar() {
               <span>{assetTypeLabels[AssetType.STOCK]}</span>
             </div>
             <span className="text-xs text-muted-foreground">
-              {groupedAssets[AssetType.STOCK].length}
+              {0} {/* Placeholder for stocks count */}
             </span>
           </SidebarMenuButton>
 
@@ -451,7 +463,7 @@ export function AssetsSidebar() {
               <span>{assetTypeLabels[AssetType.CRYPTO]}</span>
             </div>
             <span className="text-xs text-muted-foreground">
-              {groupedAssets[AssetType.CRYPTO].length}
+              {0} {/* Placeholder for crypto count */}
             </span>
           </SidebarMenuButton>
 

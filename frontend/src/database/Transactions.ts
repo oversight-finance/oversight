@@ -1,6 +1,5 @@
 import { createClient } from "@/utils/supabase/client";
 import { BankAccountTransaction } from "@/types";
-import { syncAccountBalance } from "./Accounts";
 
 type CreateBankTransactionData = Omit<BankAccountTransaction, "id">;
 type TransactionResult = { id: string; account_id: string };
@@ -118,10 +117,10 @@ const createTransactionsCore = async (
       accountIdsToUpdate.add(tx.account_id);
     }
 
-    // Update all affected account balances in parallel
-    const updatePromises =
-      Array.from(accountIdsToUpdate).map(syncAccountBalance);
-    await Promise.all(updatePromises);
+    // // Update all affected account balances in parallel
+    // const updatePromises =
+    //   Array.from(accountIdsToUpdate).map(syncAccountBalance);
+    // await Promise.all(updatePromises);
 
     return data as TransactionResult[];
   } catch (error) {
@@ -234,8 +233,8 @@ const updateBankTransactionsCore = async (
     }
 
     // Update all account balances in parallel
-    const updatePromises = Array.from(accountsToUpdate).map(syncAccountBalance);
-    await Promise.all(updatePromises);
+    // const updatePromises = Array.from(accountsToUpdate).map(syncAccountBalance);
+    // await Promise.all(updatePromises);
 
     // Set all transactions as successful
     transactionIds.forEach((id) => results.set(id, true));
@@ -328,8 +327,8 @@ const deleteBankTransactionsCore = async (
     }
 
     // Update all account balances in parallel
-    const updatePromises = Array.from(accountsToUpdate).map(syncAccountBalance);
-    await Promise.all(updatePromises);
+    // const updatePromises = Array.from(accountsToUpdate).map(syncAccountBalance);
+    // await Promise.all(updatePromises);
 
     // Set all transactions as successful
     transactionIds.forEach((id) => results.set(id, true));

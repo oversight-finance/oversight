@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createBankAccount } from "@/database/Accounts";
+import { createBankAccount } from "@/database/BankAccounts";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BankAccountType } from "@/types/Account";
