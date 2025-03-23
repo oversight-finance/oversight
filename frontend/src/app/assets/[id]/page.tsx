@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAssets } from "@/contexts/AssetsContext";
-import { Asset, AssetType } from "@/types/Account";
+import { AssetType } from "@/types/Asset";
 import { Button } from "@/components/ui/button";
 import {
   VehicleDetails,
@@ -11,6 +11,11 @@ import {
   StockDetails,
   CryptoDetails,
 } from "./components";
+import { Vehicle } from "@/types/Vehicle";
+import { RealEstate } from "@/types/RealEstate";
+
+// Union type for all possible asset types
+type AssetUnion = Vehicle | RealEstate;
 
 export default function AssetDetailsPage({
   params,
@@ -18,7 +23,7 @@ export default function AssetDetailsPage({
   params: { id: string };
 }) {
   const { assets } = useAssets();
-  const [asset, setAsset] = useState<Asset | null>(null);
+  const [asset, setAsset] = useState<AssetUnion | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -39,12 +44,34 @@ export default function AssetDetailsPage({
     );
   }
 
+  // Determine asset type
+  const getAssetType = (): AssetType => {
+    if ("make" in asset && "model" in asset) {
+      return AssetType.VEHICLE;
+    } else if ("property_type" in asset) {
+      return AssetType.REAL_ESTATE;
+    }
+    return AssetType.STOCK; // Default fallback
+  };
+
+  const assetType = getAssetType();
+
+  // Get a display name for the asset
+  const getAssetName = (): string => {
+    if ("make" in asset && "model" in asset) {
+      return `${asset.year} ${asset.make} ${asset.model}`;
+    } else if ("property_type" in asset) {
+      return asset.address || "Real Estate Property";
+    }
+    return "Asset";
+  };
+
   const renderAssetDetails = () => {
-    switch (asset.type) {
+    switch (assetType) {
       case AssetType.VEHICLE:
-        return <VehicleDetails asset={asset} />;
+        return <VehicleDetails asset={asset as Vehicle} />;
       case AssetType.REAL_ESTATE:
-        return <RealEstateDetails asset={asset} />;
+        return <RealEstateDetails asset={asset as RealEstate} />;
       case AssetType.STOCK:
         return <StockDetails asset={asset} />;
       case AssetType.CRYPTO:
@@ -70,7 +97,7 @@ export default function AssetDetailsPage({
         >
           Back to Dashboard
         </Button>
-        <h1 className="text-2xl font-bold">{asset.name}</h1>
+        <h1 className="text-2xl font-bold">{getAssetName()}</h1>
       </div>
 
       {renderAssetDetails()}

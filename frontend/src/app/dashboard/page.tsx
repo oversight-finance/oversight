@@ -14,7 +14,7 @@ import {
 } from "@/utils/dataTransformers";
 import { AccountsProvider, useAccounts } from "@/contexts/AccountsContext";
 import { useAssets } from "@/contexts/AssetsContext";
-import { AssetType } from "@/types/Account";
+import { AssetType } from "@/types/Asset";
 import CreateAccount from "@/components/LinkedAccounts/CreateAccount";
 import CreateAssetMessage from "@/components/CreateAssetMessage/CreateAssetMessage";
 import MonthlyGraph from "@/components/MonthlyGraph/MonthlyGraph";
@@ -35,10 +35,18 @@ export default function Dashboard() {
     // Get all transactions from all accounts
     const allTransactions = accounts.flatMap(
       (account) =>
-        account.transactions?.map((transaction) => ({
-          date: new Date(transaction.transactionDate),
-          amount: transaction.amount,
-        })) || []
+        account.transactions?.map((transaction) => {
+          // Handle different transaction types
+          const date = new Date(
+            "transaction_date" in transaction
+              ? transaction.transaction_date
+              : new Date().toISOString()
+          );
+
+          const amount = "amount" in transaction ? transaction.amount : 0;
+
+          return { date, amount };
+        }) || []
     );
 
     // Sort transactions by date (ascending)
@@ -96,41 +104,81 @@ export default function Dashboard() {
       currentDate.setMonth(currentDate.getMonth() + 1);
     }
 
+    // Add account balances - this ensures we include accounts without transactions
+    accounts.forEach((account) => {
+      if (account.balance) {
+        // Add the current balance to the last monthly data point
+        if (monthlyDataPoints.length > 0) {
+          const lastPoint = monthlyDataPoints[monthlyDataPoints.length - 1];
+          lastPoint.netWorth += account.balance;
+        }
+      }
+    });
+
     // Add asset values to each monthly data point
     assets.forEach((asset) => {
-      if (!asset.purchaseDate || !asset.purchaseValue) return;
+      // Get purchase date and value based on asset type
+      let purchaseDate: Date | null = null;
+      let purchaseValue: number | null = null;
+      let assetType: AssetType | null = null;
+      let depreciationRate: number = 15; // Default depreciation rate for vehicles
+      let appreciationRate: number = 3; // Default appreciation rate for real estate
 
-      const purchaseDate = new Date(asset.purchaseDate);
-      const assetType = asset.type;
-      const purchaseValue = asset.purchaseValue;
+      // Check if it's a Vehicle asset
+      if ("make" in asset && "model" in asset) {
+        if (asset.purchase_date && asset.purchase_price) {
+          purchaseDate = new Date(asset.purchase_date);
+          purchaseValue = asset.purchase_price;
+          assetType = AssetType.VEHICLE;
+        }
+      }
+      // Check if it's a RealEstate asset
+      else if ("property_type" in asset) {
+        if (asset.purchase_date && asset.purchase_price) {
+          purchaseDate = new Date(asset.purchase_date);
+          purchaseValue = asset.purchase_price;
+          assetType = AssetType.REAL_ESTATE;
+          appreciationRate = 3.5; // Custom rate for real estate
+        }
+      }
+
+      if (!purchaseDate || !purchaseValue || !assetType) return;
 
       // Calculate monthly values based on asset type
       let monthlyValues: { month: string; value: number }[] = [];
 
       if (assetType === AssetType.VEHICLE) {
         // Vehicle depreciation
-        const depreciationRate = asset.metadata?.depreciationRate || 15;
         monthlyValues = calculateDepreciation(
           purchaseValue,
           depreciationRate,
           60, // 5 years of monthly data
-          asset.purchaseDate
+          purchaseDate.toISOString()
         );
       } else if (assetType === AssetType.REAL_ESTATE) {
         // Real estate appreciation
-        const appreciationRate = asset.metadata?.appreciationRate || 3;
         monthlyValues = calculateAppreciation(
           purchaseValue,
           appreciationRate,
           60, // 5 years of monthly data
-          asset.purchaseDate
+          purchaseDate.toISOString()
         );
       } else {
         // For other asset types, use current value
+        // Safe check to get current value with fallback to purchase value
+        let currentValue = purchaseValue;
+
+        if (
+          "current_value" in asset &&
+          typeof asset.current_value === "number"
+        ) {
+          currentValue = asset.current_value;
+        }
+
         monthlyValues = [
           {
             month: new Date().toISOString().split("T")[0].substring(0, 7),
-            value: asset.currentValue || purchaseValue,
+            value: currentValue,
           },
         ];
       }
@@ -153,9 +201,15 @@ export default function Dashboard() {
 
         if (assetValueForMonth) {
           dataPoint.netWorth += assetValueForMonth.value;
-        } else if (asset.currentValue) {
+        } else if (
+          "current_value" in asset &&
+          typeof asset.current_value === "number"
+        ) {
           // Fallback to current value if no calculated value is found
-          dataPoint.netWorth += asset.currentValue;
+          dataPoint.netWorth += asset.current_value;
+        } else if (purchaseValue) {
+          // Fallback to purchase value as last resort
+          dataPoint.netWorth += purchaseValue;
         }
       });
     });

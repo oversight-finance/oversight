@@ -1,29 +1,51 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
-import { Account, AccountType } from "@/types/Account";
-import { BankAccountTransaction } from "@/types";
+import {
+  Account,
+  AccountType,
+  BankAccount,
+  InvestmentAccount,
+  CryptoWallet,
+  BankAccountWithTransactions,
+} from "@/types/Account";
+import {
+  BankAccountTransaction,
+  CryptoWalletTransaction,
+  InvestmentTransaction,
+} from "@/types/Transaction";
 import { createClient } from "@/utils/supabase/client";
 import {
   fetchUserAccounts,
   createAccount,
   fetchAccountById,
 } from "@/database/Accounts";
-import { fetchBankAccountTransactions as fetchTxs } from "@/database/Transactions";
+import {
+  fetchBankAccountTransactions as fetchBankTxs,
+  // TODO: Implement these functions in the database/Transactions.ts file
+  // fetchInvestmentTransactions as fetchInvestmentTxs,
+  // fetchCryptoTransactions as fetchCryptoTxs
+} from "@/database/Transactions";
 
 // Export database functions directly so components can use them
-export type { Account, AccountType } from "@/types/Account";
-export type { BankAccountTransaction } from "@/types";
 export * from "@/database/Accounts";
 export * from "@/database/Transactions";
 
-// Create a union type for all transaction types (currently just bank transactions)
-export type Transaction = BankAccountTransaction; // Will extend with other types later
-        
+// Create a union type for all transaction types
+export type Transaction =
+  | BankAccountTransaction
+  | CryptoWalletTransaction
+  | InvestmentTransaction;
+
+// Extended account type that includes transactions data
+export type AccountWithTransactions = Account & {
+  transactions?: Transaction[];
+};
+
 // Core context interface - focused only on state management
 export type AccountsContextType = {
   // State
-  accounts: Account[];
+  accounts: AccountWithTransactions[];
   isLoading: boolean;
   error: string | null;
 
@@ -41,7 +63,7 @@ export type AccountsContextType = {
 const AccountsContext = createContext<AccountsContextType | null>(null);
 
 export function AccountsProvider({ children }: { children: React.ReactNode }) {
-  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accounts, setAccounts] = useState<AccountWithTransactions[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const supabase = createClient();
@@ -79,10 +101,35 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       // Use the database utility function to get accounts
       const accountsList = await fetchUserAccounts(userId);
 
-      // For each account, retrieve its transactions
+      // For each account, retrieve its transactions based on account type
       const accountsWithTransactions = await Promise.all(
         accountsList.map(async (account) => {
-          const transactions = await fetchTxs(account.id);
+          let transactions: Transaction[] = [];
+
+          switch (account.account_type) {
+            case AccountType.BANK:
+            case AccountType.CREDIT:
+            case AccountType.SAVINGS:
+              transactions = await fetchBankTxs(account.id);
+              break;
+            case AccountType.INVESTMENT:
+            case AccountType.STOCK:
+              // TODO: Implement fetchInvestmentTxs
+              // transactions = await fetchInvestmentTxs(account.id);
+              console.warn("Investment transactions not yet implemented");
+              break;
+            case AccountType.CRYPTO:
+              // TODO: Implement fetchCryptoTxs
+              // transactions = await fetchCryptoTxs(account.id);
+              console.warn("Crypto transactions not yet implemented");
+              break;
+            default:
+              // Handle unsupported account types
+              console.warn(
+                `Transactions for account type ${account.account_type} not yet supported`
+              );
+          }
+
           return {
             ...account,
             transactions,
@@ -115,15 +162,22 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       // Based on account type, call the appropriate fetch function
       switch (account.account_type) {
         case AccountType.BANK:
-          const bankTransactions = await fetchTxs(accountId);
-          return bankTransactions as unknown as Transaction[];
+        case AccountType.CREDIT:
+        case AccountType.SAVINGS:
+          return await fetchBankTxs(accountId);
 
-        // Add cases for other account types as you implement them
-        // case AccountType.INVESTMENT:
-        //   return await fetchInvestmentTransactions(accountId) as unknown as Transaction[];
+        case AccountType.INVESTMENT:
+        case AccountType.STOCK:
+          // TODO: Implement fetchInvestmentTxs
+          // return await fetchInvestmentTxs(accountId);
+          console.warn("Investment transactions not yet implemented");
+          return [];
 
-        // case AccountType.CRYPTO:
-        //   return await fetchCryptoTransactions(accountId) as unknown as Transaction[];
+        case AccountType.CRYPTO:
+          // TODO: Implement fetchCryptoTxs
+          // return await fetchCryptoTxs(accountId);
+          console.warn("Crypto transactions not yet implemented");
+          return [];
 
         default:
           console.error(`Unsupported account type: ${account.account_type}`);

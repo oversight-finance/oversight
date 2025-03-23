@@ -3,7 +3,7 @@ import { useAssets } from "@/contexts/AssetsContext";
 import { useAccounts } from "@/contexts/AccountsContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Vehicle } from "@/types/Vehicle";
+import { Vehicle, CarPaymentMethod } from "@/types/Vehicle";
 import {
   Select,
   SelectContent,
@@ -13,8 +13,6 @@ import {
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { formatTotalAmount } from "@/lib/utils";
-
-type FinancingType = "cash" | "finance" | "lease";
 
 // Calculate depreciated value based on purchase price, date, and depreciation rate
 const calculateCurrentValue = (
@@ -114,9 +112,11 @@ export default function VehicleForm() {
   const { getCurrentUserId } = useAccounts();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Initial form data with necessary Vehicle fields
-  const [formData, setFormData] = useState<Partial<Vehicle> & { user_id: string }>({
+  const [formData, setFormData] = useState<
+    Partial<Vehicle> & { user_id: string }
+  >({
     user_id: "", // Will be set when submitting
     make: "",
     model: "",
@@ -126,37 +126,51 @@ export default function VehicleForm() {
     purchase_date: new Date().toISOString().split("T")[0], // Today's date in YYYY-MM-DD format
     vin: "",
     currency: "USD",
+    payment_method: CarPaymentMethod.CASH,
+    loan_amount: 0,
+    interest_rate: 0,
+    loan_term_months: 0,
+    monthly_payment: 0,
+    lease_term_months: 0,
   });
 
-  // Additional form fields not part of Vehicle type
-  const [additionalData, setAdditionalData] = useState({
-    licensePlate: "",
-    condition: "good",
-    color: "",
-    mileage: 0,
-    financingType: "cash" as FinancingType,
-    interestRate: 0,
-    monthlyPayment: 0,
-    loanTerm: 0, // in months
-    depreciationRate: 15, // default 15% annual depreciation
-  });
+  // Just keep depreciationRate for calculation
+  const [depreciationRate, setDepreciationRate] = useState(15); // default 15% annual depreciation
 
   // Calculate current value whenever relevant fields change
   useEffect(() => {
     const currentValue = calculateCurrentValue(
       formData.purchase_price || 0, // Add default value of 0
       formData.purchase_date || "",
-      additionalData.depreciationRate
+      depreciationRate
     );
 
     setFormData((prev) => ({
       ...prev,
       current_value: currentValue,
     }));
+  }, [formData.purchase_price, formData.purchase_date, depreciationRate]);
+
+  // Calculate loan end date based on start date and term
+  useEffect(() => {
+    if (
+      formData.payment_method === CarPaymentMethod.FINANCE &&
+      formData.loan_start_date &&
+      formData.loan_term_months
+    ) {
+      const startDate = new Date(formData.loan_start_date);
+      const endDate = new Date(startDate);
+      endDate.setMonth(startDate.getMonth() + formData.loan_term_months);
+
+      setFormData((prev) => ({
+        ...prev,
+        loan_end_date: endDate.toISOString().split("T")[0],
+      }));
+    }
   }, [
-    formData.purchase_price,
-    formData.purchase_date,
-    additionalData.depreciationRate,
+    formData.loan_start_date,
+    formData.loan_term_months,
+    formData.payment_method,
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -180,12 +194,29 @@ export default function VehicleForm() {
         year: formData.year || new Date().getFullYear(),
         purchase_price: formData.purchase_price || 0,
         current_value: formData.current_value || 0,
-        purchase_date: formData.purchase_date || new Date().toISOString().split("T")[0],
+        purchase_date:
+          formData.purchase_date || new Date().toISOString().split("T")[0],
         vin: formData.vin || "",
         currency: formData.currency || "USD",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        payment_method: formData.payment_method,
       };
+
+      // Add financing details if not cash purchase
+      if (formData.payment_method !== CarPaymentMethod.CASH) {
+        vehicle.loan_amount = formData.loan_amount;
+        vehicle.loan_start_date = formData.purchase_date; // Default to purchase date
+        vehicle.interest_rate = formData.interest_rate;
+        vehicle.monthly_payment = formData.monthly_payment;
+
+        if (formData.payment_method === CarPaymentMethod.FINANCE) {
+          vehicle.loan_term_months = formData.loan_term_months;
+          vehicle.loan_end_date = formData.loan_end_date;
+        } else if (formData.payment_method === CarPaymentMethod.LEASE) {
+          vehicle.lease_term_months = formData.lease_term_months;
+        }
+      }
 
       // Add the vehicle to assets context
       const newAssetId = await addAsset(vehicle);
@@ -210,19 +241,15 @@ export default function VehicleForm() {
           purchase_date: new Date().toISOString().split("T")[0],
           vin: "",
           currency: "USD",
+          payment_method: CarPaymentMethod.CASH,
+          loan_amount: 0,
+          interest_rate: 0,
+          loan_term_months: 0,
+          monthly_payment: 0,
+          lease_term_months: 0,
         });
 
-        setAdditionalData({
-          licensePlate: "",
-          condition: "good",
-          color: "",
-          mileage: 0,
-          financingType: "cash" as FinancingType,
-          interestRate: 0,
-          monthlyPayment: 0,
-          loanTerm: 0,
-          depreciationRate: 15,
-        });
+        setDepreciationRate(15);
 
         // Redirect to the new vehicle's details page
         router.push(`/vehicles/${newAssetId}`);
@@ -345,6 +372,207 @@ export default function VehicleForm() {
           </div>
 
           <div className="space-y-2">
+            <label htmlFor="payment_method" className="text-sm font-medium">
+              Payment Method
+            </label>
+            <Select
+              value={formData.payment_method}
+              onValueChange={(value: CarPaymentMethod) =>
+                setFormData({
+                  ...formData,
+                  payment_method: value,
+                })
+              }
+            >
+              <SelectTrigger id="payment_method">
+                <SelectValue placeholder="Select Payment Method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={CarPaymentMethod.CASH}>
+                  Cash Purchase
+                </SelectItem>
+                <SelectItem value={CarPaymentMethod.FINANCE}>
+                  Financed
+                </SelectItem>
+                <SelectItem value={CarPaymentMethod.LEASE}>Leased</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Conditional fields based on payment method */}
+          {formData.payment_method !== CarPaymentMethod.CASH && (
+            <>
+              <div className="space-y-2">
+                <label htmlFor="loan_amount" className="text-sm font-medium">
+                  {formData.payment_method === CarPaymentMethod.LEASE
+                    ? "Lease Amount"
+                    : "Loan Amount"}
+                </label>
+                <Input
+                  id="loan_amount"
+                  type="number"
+                  value={formData.loan_amount || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      loan_amount: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="20000"
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="loan_start_date"
+                  className="text-sm font-medium"
+                >
+                  {formData.payment_method === CarPaymentMethod.LEASE
+                    ? "Lease Start Date"
+                    : "Loan Start Date"}
+                </label>
+                <Input
+                  id="loan_start_date"
+                  type="date"
+                  value={formData.loan_start_date || formData.purchase_date}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      loan_start_date: e.target.value,
+                    })
+                  }
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Defaults to purchase date if not specified
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="interest_rate" className="text-sm font-medium">
+                  Interest Rate (%)
+                </label>
+                <Input
+                  id="interest_rate"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="30"
+                  value={formData.interest_rate || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      interest_rate: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="4.5"
+                  className="w-full"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label
+                  htmlFor="monthly_payment"
+                  className="text-sm font-medium"
+                >
+                  Monthly Payment
+                </label>
+                <Input
+                  id="monthly_payment"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.monthly_payment || ""}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      monthly_payment: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  placeholder="450"
+                  className="w-full"
+                />
+              </div>
+
+              {formData.payment_method === CarPaymentMethod.FINANCE && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="loan_term_months"
+                    className="text-sm font-medium"
+                  >
+                    Loan Term (months)
+                  </label>
+                  <Input
+                    id="loan_term_months"
+                    type="number"
+                    min="1"
+                    max="120"
+                    value={formData.loan_term_months || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        loan_term_months: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="60"
+                    className="w-full"
+                  />
+                </div>
+              )}
+
+              {formData.payment_method === CarPaymentMethod.LEASE && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="lease_term_months"
+                    className="text-sm font-medium"
+                  >
+                    Lease Term (months)
+                  </label>
+                  <Input
+                    id="lease_term_months"
+                    type="number"
+                    min="1"
+                    max="60"
+                    value={formData.lease_term_months || ""}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        lease_term_months: parseInt(e.target.value) || 0,
+                      })
+                    }
+                    placeholder="36"
+                    className="w-full"
+                  />
+                </div>
+              )}
+
+              {formData.loan_end_date && (
+                <div className="space-y-2">
+                  <label
+                    htmlFor="loan_end_date"
+                    className="text-sm font-medium"
+                  >
+                    {formData.payment_method === CarPaymentMethod.LEASE
+                      ? "Lease End Date"
+                      : "Loan End Date"}
+                  </label>
+                  <Input
+                    id="loan_end_date"
+                    type="date"
+                    value={formData.loan_end_date}
+                    readOnly
+                    className="w-full bg-muted"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Calculated based on start date and term
+                  </p>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="space-y-2">
             <label htmlFor="vin" className="text-sm font-medium">
               VIN (Vehicle Identification Number)
             </label>
@@ -366,27 +594,6 @@ export default function VehicleForm() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="licensePlate" className="text-sm font-medium">
-              License Plate
-            </label>
-            <Input
-              id="licensePlate"
-              value={additionalData.licensePlate}
-              onChange={(e) =>
-                setAdditionalData({
-                  ...additionalData,
-                  licensePlate: e.target.value,
-                })
-              }
-              placeholder="ABC-1234"
-              className="w-full"
-            />
-            <p className="text-xs text-muted-foreground">
-              Optional: Enter the license plate for your vehicle
-            </p>
-          </div>
-
-          <div className="space-y-2">
             <label htmlFor="depreciationRate" className="text-sm font-medium">
               Depreciation Rate (% per year)
             </label>
@@ -396,12 +603,9 @@ export default function VehicleForm() {
               min="0"
               max="50"
               step="0.1"
-              value={additionalData.depreciationRate}
+              value={depreciationRate}
               onChange={(e) =>
-                setAdditionalData({
-                  ...additionalData,
-                  depreciationRate: parseFloat(e.target.value) || 15,
-                })
+                setDepreciationRate(parseFloat(e.target.value) || 15)
               }
               className="w-full"
             />

@@ -9,18 +9,8 @@ import { DataTableColumnHeader } from "@/components/DataTable/data-table-column-
 import { Checkbox } from "@/components/ui/checkbox";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import { DataTable } from "@/components/DataTable/DataTable";
+import { TransactionBase } from "@/types/Transaction";
 
-/**
- * Interface requiring common transaction fields
- */
-export interface TransactionBase {
-  id: string;
-  [key: string]: unknown;
-}
-
-/**
- * Interface for the TransactionTable component props
- */
 interface TransactionTableProps<T extends TransactionBase> {
   transactions: T[];
   onDelete?: (transactionId: string) => void;
@@ -98,7 +88,8 @@ export default function TransactionTable<T extends TransactionBase>({
       // Check value types if sample available
       if (sampleTransaction) {
         const value = sampleTransaction[key as keyof typeof sampleTransaction];
-        if (value instanceof Date) return "date";
+        if (typeof value === "string" && !isNaN(Date.parse(value as string)))
+          return "date";
         if (typeof value === "number") return "amount";
       }
 
@@ -204,6 +195,13 @@ export default function TransactionTable<T extends TransactionBase>({
     }
   };
 
+  // Cast to compatible type for DataTable while preserving functionality
+  const compatibleData = transactions as unknown as Record<string, any>[];
+  const compatibleColumns = columns as unknown as ColumnDef<
+    Record<string, any>,
+    unknown
+  >[];
+
   return (
     <div className="space-y-4">
       {onTransactionAdd && (
@@ -219,11 +217,16 @@ export default function TransactionTable<T extends TransactionBase>({
       )}
 
       <DataTable
-        columns={columns}
-        data={transactions}
+        columns={compatibleColumns}
+        data={compatibleData}
         title={title}
-        onEdit={onEdit ? handleEdit : undefined}
-        onDelete={onDelete ? handleDelete : undefined}
+        onEdit={
+          onEdit
+            ? (row, updatedRow) =>
+                handleEdit(row as T, updatedRow as Partial<T>)
+            : undefined
+        }
+        onDelete={onDelete ? (row) => handleDelete(row as T) : undefined}
       />
     </div>
   );

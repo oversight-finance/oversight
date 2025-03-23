@@ -1,7 +1,11 @@
-import { Asset } from "@/types/Account";
+import { Vehicle } from "@/types/Vehicle";
+import { RealEstate } from "@/types/RealEstate";
+
+// Generic asset type since we don't have a specific Stock type yet
+type GenericAsset = Vehicle | RealEstate;
 
 interface StockDetailsProps {
-  asset: Asset;
+  asset: GenericAsset;
 }
 
 export default function StockDetails({ asset }: StockDetailsProps) {
