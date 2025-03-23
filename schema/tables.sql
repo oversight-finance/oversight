@@ -67,25 +67,24 @@ ALTER TABLE public.recurring_schedules ENABLE ROW LEVEL SECURITY;
 -- Represents cryptocurrency accounts for each user
 CREATE TABLE IF NOT EXISTS public.crypto_wallets (
   account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
+  coin_symbol text NOT NULL,  -- e.g., 'BTC', 'ETH', 'SOL'
   wallet_name text NOT NULL,
   wallet_address text,
   balance numeric(16, 8) NOT NULL, -- Higher precision for crypto amounts
   PRIMARY KEY (account_id)
 );
-ALTER TABLE public.crypto_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.crypto_wallets ENABLE ROW LEVEL SECURITY;
 
 -- Crypto Accounts Transactions Table
 -- Represents cryptocurrency transactions for each user
 CREATE TABLE IF NOT EXISTS public.crypto_wallet_transactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  account_id uuid NOT NULL REFERENCES public.crypto_accounts(account_id) ON DELETE CASCADE,
+  account_id uuid NOT NULL REFERENCES public.crypto_wallets(account_id) ON DELETE CASCADE,
   transaction_date timestamptz DEFAULT now() NOT NULL,
-  transaction_type text NOT NULL, -- e.g., 'buy', 'sell', 'transfer', 'stake', 'unstake', etc.
-  coin_symbol text NOT NULL, -- e.g., 'BTC', 'ETH', 'SOL'
   amount numeric(16, 8) NOT NULL, -- Crypto amount
-  price_per_coin numeric(16, 2) NOT NULL, -- Price in fiat at transaction time
+  price_at_transaction numeric(16, 2) NOT NULL, -- Price in fiat at transaction time
   fee numeric(12, 2), -- Transaction fee
-  FOREIGN KEY (account_id) REFERENCES public.crypto_accounts(account_id) ON DELETE CASCADE
+  FOREIGN KEY (account_id) REFERENCES public.crypto_wallets(account_id) ON DELETE CASCADE
 );
 ALTER TABLE public.crypto_wallet_transactions ENABLE ROW LEVEL SECURITY;
 

@@ -1,8 +1,6 @@
 // Account-related type definitions that match the database schema
 
-
 import { BankAccountTransaction } from "@/types/Transaction";
-
 
 /**
  * Aligns with the account_type enum in the database
@@ -13,55 +11,53 @@ export enum AccountType {
   CRYPTO = "crypto",
   CREDIT = "credit",
   SAVINGS = "savings",
-  STOCK = "stock",
-  REAL_ESTATE = "real_estate",
-  VEHICLE = "vehicle",
 }
 
 /**
- * Base account interface matching accounts table
+ * Base account type matching accounts table
  */
-export interface Account {
+export type Account = {
   id: string;
   user_id: string;
   account_type: AccountType;
   balance: number;
   created_at: string;
   updated_at: string;
-}
+};
 
 /**
- * Bank account interface matching bank_accounts table
+ * Bank account type matching bank_accounts table
  * Extends the base Account type
  */
-export interface BankAccount extends Account {
+export type BankAccount = Account & {
   account_name: string;
   institution_name: string;
   account_number: string;
   routing_number: string;
   currency: string;
-}
+};
 
 /**
- * Crypto wallet interface matching crypto_wallets table
+ * Crypto wallet type matching crypto_wallets table
  */
-export interface CryptoWallet extends Account {
+export type CryptoWallet = Account & {
   wallet_name: string;
   wallet_address?: string;
+  coin_symbol: string; // e.g., 'BTC', 'ETH', 'SOL'
   balance: number;
-}
+};
 
 /**
- * Investment account interface matching investment_accounts table
+ * Investment account type matching investment_accounts table
  */
-export interface InvestmentAccount extends Account {
+export type InvestmentAccount = Account & {
   investment_type: string; // e.g., 'RRSP', 'TFSA', 'General'
   institution: string;
   account_number?: string;
   contribution_room?: number;
   balance: number;
   currency: string;
-}
+};
 
 /**
  * Bank account types (not in schema but useful for UI)
@@ -73,11 +69,11 @@ export enum BankAccountType {
 }
 
 /**
- * Extended account interface with transactions for UI components
+ * Extended account type with transactions for UI components
  */
-export interface BankAccountWithTransactions extends Account {
+export type BankAccountWithTransactions = Account & {
   transactions: BankAccountTransaction[];
-}
+};
 
 /**
  * Use this to calculate the current balance based on transactions

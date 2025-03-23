@@ -31,20 +31,19 @@ import { formatTotalAmount } from "@/lib/utils";
 import VehicleForm from "@/components/Assets/VehicleForm";
 import RealEstateForm from "@/components/Assets/RealEstateForm";
 import BankForm from "@/components/LinkedAccounts/BankForm";
+import CryptoWalletForm from "@/components/LinkedAccounts/CryptoWalletForm";
 import { Account, AccountType, BankAccount } from "@/types/Account";
 import { fetchBankAccounts } from "@/database/BankAccounts";
 import React from "react";
 
 // Define asset types as string literals
 export enum AssetType {
-  CRYPTO = "crypto",
   STOCK = "stock",
   REAL_ESTATE = "real_estate",
   VEHICLE = "vehicle",
 }
 
 const assetTypeIcons = {
-  [AssetType.CRYPTO]: <Coins className="h-4 w-4" />,
   [AssetType.STOCK]: <CircleDollarSign className="h-4 w-4" />,
   [AssetType.REAL_ESTATE]: <Home className="h-4 w-4" />,
   [AssetType.VEHICLE]: <Car className="h-4 w-4" />,
@@ -62,7 +61,6 @@ const accountTypeIcons: Record<AccountType, React.ReactNode> = {
 };
 
 const assetTypeLabels = {
-  [AssetType.CRYPTO]: "Cryptocurrencies",
   [AssetType.STOCK]: "Stocks",
   [AssetType.REAL_ESTATE]: "Real Estate",
   [AssetType.VEHICLE]: "Vehicles",
@@ -109,8 +107,10 @@ export function AssetsSidebar() {
   );
 
   // Split assets into vehicles and real estate
-  const vehicles = assets.filter((asset): asset is Vehicle => 'make' in asset);
-  const realEstate = assets.filter((asset): asset is RealEstate => 'address' in asset);
+  const vehicles = assets.filter((asset): asset is Vehicle => "make" in asset);
+  const realEstate = assets.filter(
+    (asset): asset is RealEstate => "address" in asset
+  );
 
   // Fetch additional details for bank accounts
   useEffect(() => {
@@ -198,6 +198,8 @@ export function AssetsSidebar() {
         case AccountType.BANK:
           return <BankForm />;
         // Add other account type forms here as they are implemented
+        case AccountType.CRYPTO:
+          return <CryptoWalletForm />;
         default:
           return (
             <div className="p-4 text-center text-muted-foreground">
@@ -455,22 +457,22 @@ export function AssetsSidebar() {
         {/* Cryptocurrencies Section */}
         <SidebarMenuItem>
           <SidebarMenuButton
-            onClick={() => toggleSection(AssetType.CRYPTO)}
+            onClick={() => toggleSection(AccountType.CRYPTO)}
             className="justify-between"
           >
             <div className="flex items-center gap-2">
-              {assetTypeIcons[AssetType.CRYPTO]}
-              <span>{assetTypeLabels[AssetType.CRYPTO]}</span>
+              {accountTypeIcons[AccountType.CRYPTO]}
+              <span>{accountTypeLabels[AccountType.CRYPTO]}</span>
             </div>
             <span className="text-xs text-muted-foreground">
               {0} {/* Placeholder for crypto count */}
             </span>
           </SidebarMenuButton>
 
-          {openSections.includes(AssetType.CRYPTO) && (
+          {openSections.includes(AccountType.CRYPTO) && (
             <SidebarMenuSub>
               <SidebarMenuSubButton
-                onClick={() => handleAddAsset(AssetType.CRYPTO)}
+                onClick={() => handleAddAccount(AccountType.CRYPTO)}
                 className="italic text-muted-foreground"
               >
                 <PlusCircle className="h-4 w-4" />
