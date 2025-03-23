@@ -19,7 +19,7 @@ export * from "@/database/Transactions";
 
 // Create a union type for all transaction types (currently just bank transactions)
 export type Transaction = BankAccountTransaction; // Will extend with other types later
-
+        
 // Core context interface - focused only on state management
 export type AccountsContextType = {
   // State

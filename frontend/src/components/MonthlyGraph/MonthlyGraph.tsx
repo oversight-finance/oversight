@@ -10,8 +10,7 @@ import {
   YAxis,
 } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
-import { useAccounts } from "@/contexts/AccountsContext";
-import { Transaction } from "@/types/Account";
+import { useAccounts, Transaction } from "@/contexts/AccountsContext";
 import { formatTotalAmount } from "@/lib/utils";
 
 interface DataPoint {
@@ -52,8 +51,8 @@ export default function MonthlyGraph({ type }: MonthlyGraphProps) {
 
   // Get filtered transactions
   const allTransactions = accounts.flatMap((account) =>
-    (account.transactions || []).filter(config.filterFn).map((transaction) => ({
-      date: new Date(transaction.transactionDate),
+    ((account as any).transactions || []).filter(config.filterFn).map((transaction: Transaction) => ({
+      date: new Date(transaction.transaction_date),
       amount: config.transformAmount(transaction.amount),
     }))
   );
@@ -70,10 +69,10 @@ export default function MonthlyGraph({ type }: MonthlyGraphProps) {
     }
     acc[monthKey].value += transaction.amount;
     return acc;
-  }, {} as Record<string, { value: number; date: Date }>);
+  }, {} as Record<string, DataPoint>);
 
   // Convert to array and sort by date
-  const chartData: DataPoint[] = Object.values(monthlyData).sort(
+  const chartData = (Object.values(monthlyData) as DataPoint[]).sort(
     (a, b) => a.date.getTime() - b.date.getTime()
   );
 
