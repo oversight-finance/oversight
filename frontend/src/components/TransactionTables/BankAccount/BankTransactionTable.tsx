@@ -6,7 +6,7 @@ import {
   deleteBankTransaction,
   updateBankTransaction,
 } from "@/database/Transactions";
-import TransactionTable from "./TransactionTable";
+import TransactionTable from "../TransactionTable";
 import { BankAccountTransaction } from "@/types";
 import { toast } from "@/hooks/use-toast";
 

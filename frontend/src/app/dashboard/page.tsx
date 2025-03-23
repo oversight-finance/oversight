@@ -5,7 +5,7 @@ import Sidebar from "@/components/Sidebar";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import CSVUploader from "../csvParser";
 import Networth from "@/components/Networth/Networth";
-import TransactionTable from "@/components/TransactionTables/BankAccount/TransactionTable";
+import TransactionTable from "@/components/TransactionTables/TransactionTable";
 import SpendingChart from "@/components/SpendingChart/SpendingChart";
 import {
   type ParsedData,
