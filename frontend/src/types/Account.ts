@@ -1,6 +1,6 @@
 // Account-related type definitions that match the database schema
 
-import { BankAccountTransaction } from "./BankAccountTransaction";
+import { BankAccountTransaction } from "@/types/Transaction";
 
 /**
  * Aligns with the account_type enum in the database
@@ -41,38 +41,33 @@ export interface BankAccount extends Account {
 }
 
 /**
+ * Crypto wallet interface matching crypto_wallets table
+ */
+export interface CryptoWallet extends Account {
+  wallet_name: string;
+  wallet_address?: string;
+  balance: number;
+}
+
+/**
+ * Investment account interface matching investment_accounts table
+ */
+export interface InvestmentAccount extends Account {
+  investment_type: string; // e.g., 'RRSP', 'TFSA', 'General'
+  institution: string;
+  account_number?: string;
+  contribution_room?: number;
+  balance: number;
+  currency: string;
+}
+
+/**
  * Bank account types (not in schema but useful for UI)
  */
 export enum BankAccountType {
   CHECKING = "checking",
   SAVINGS = "savings",
   CREDIT = "credit",
-}
-
-/**
- * Asset related types matching assets table
- */
-export interface Asset {
-  id: string;
-  user_id: string;
-  type: string;
-  name: string;
-  purchase_value?: number;
-  current_value?: number;
-  purchase_date?: string;
-  metadata?: AssetMetadata;
-  created_at: string;
-}
-
-/**
- * Asset price interface matching asset_prices table
- */
-export interface AssetPrice {
-  id: string;
-  asset_id: string;
-  price_date: string;
-  price: number;
-  recorded_at: string;
 }
 
 /**

@@ -4,13 +4,43 @@
  * Represents a bank account transaction as defined in the bank_accounts_transactions table
  * transaction_date is a PostgreSQL timestamptz which Supabase returns as an ISO string
  */
-export interface BankTransaction {
+export interface BankAccountTransaction {
   id: string;
   account_id: string;
   transaction_date: string; // ISO formatted date string from timestamptz
   amount: number;
   merchant?: string;
   category?: string;
+}
+
+/**
+ * Represents a crypto wallet transaction as defined in the crypto_wallet_transactions table
+ */
+export interface CryptoWalletTransaction {
+  id: string;
+  account_id: string;
+  transaction_date: string;
+  transaction_type: string; // 'buy', 'sell', 'transfer', 'stake', 'unstake', etc.
+  coin_symbol: string;
+  amount: number;
+  price_per_coin: number;
+  fee?: number;
+}
+
+/**
+ * Represents an investment transaction as defined in the investment_transactions table
+ */
+export interface InvestmentTransaction {
+  id: string;
+  account_id: string;
+  transaction_date: string;
+  transaction_type: string; // 'buy', 'sell', 'dividend', 'contribution', 'withdrawal'
+  ticker_symbol?: string;
+  quantity?: number;
+  price_per_unit?: number;
+  amount: number;
+  fee?: number;
+  currency?: string;
 }
 
 /**
@@ -39,12 +69,12 @@ export enum TransactionType {
 /**
  * Convert database transaction to UI transaction format
  */
-export const toUITransaction = (tx: BankTransaction): UITransaction => ({
+export const toUITransaction = (tx: BankAccountTransaction): UITransaction => ({
   id: tx.id,
   account_id: tx.account_id,
   date: tx.transaction_date, // Already an ISO string from Supabase
   amount: tx.amount,
-  currency: "USD", // Default currency
+  currency: "CAD", // Default currency according to schema
   merchant: tx.merchant || "",
   category: tx.category || "",
   description: "", // Default empty description
@@ -54,7 +84,7 @@ export const toUITransaction = (tx: BankTransaction): UITransaction => ({
 /**
  * Convert array of database transactions to UI transactions
  */
-export const toUITransactions = (txs: BankTransaction[]): UITransaction[] => {
+export const toUITransactions = (txs: BankAccountTransaction[]): UITransaction[] => {
   return txs.map(toUITransaction);
 };
 
@@ -63,7 +93,7 @@ export const toUITransactions = (txs: BankTransaction[]): UITransaction[] => {
  */
 export const toDatabaseTransaction = (
   tx: UITransaction
-): Omit<BankTransaction, "id"> => ({
+): Omit<BankAccountTransaction, "id"> => ({
   account_id: tx.account_id,
   transaction_date: tx.date, // Both are ISO strings
   amount: tx.amount,
