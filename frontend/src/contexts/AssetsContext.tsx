@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect } from "react";
 import { Vehicle } from "../types/Vehicle";
 import { RealEstate } from "../types/RealEstate";
+import { AssetType } from "../types/Asset";
 import { 
   fetchUserVehicles, 
   createVehicle, 

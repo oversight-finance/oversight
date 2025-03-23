@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAssets } from "@/contexts/AssetsContext";
+import { useAccounts } from "@/contexts/AccountsContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Vehicle } from "@/types/Vehicle";
@@ -110,12 +111,13 @@ const calculateFinancingProgress = (
 
 export default function VehicleForm() {
   const { addAsset } = useAssets();
+  const { getCurrentUserId } = useAccounts();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Initial form data with necessary Vehicle fields
   const [formData, setFormData] = useState<Partial<Vehicle> & { user_id: string }>({
-    user_id: "user1", // Default user ID
+    user_id: "", // Will be set when submitting
     make: "",
     model: "",
     year: new Date().getFullYear(),
@@ -162,23 +164,30 @@ export default function VehicleForm() {
     setIsSubmitting(true);
 
     try {
+      // Get current user ID
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        console.error("Unable to get current user ID");
+        return;
+      }
+
       // Create a complete Vehicle object with required fields
       const vehicle: Vehicle = {
-        id: crypto.randomUUID(), // The addAsset will override this
-        user_id: formData.user_id,
+        id: "", // Will be set by the backend
+        user_id: userId, // Use the actual user ID
         make: formData.make || "",
         model: formData.model || "",
         year: formData.year || new Date().getFullYear(),
         purchase_price: formData.purchase_price || 0,
         current_value: formData.current_value || 0,
         purchase_date: formData.purchase_date || new Date().toISOString().split("T")[0],
-        vin: formData.vin,
+        vin: formData.vin || "",
         currency: formData.currency || "USD",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      // Add the vehicle as an asset and get the new asset ID
+      // Add the vehicle to assets context
       const newAssetId = await addAsset(vehicle);
 
       if (newAssetId) {
@@ -192,7 +201,7 @@ export default function VehicleForm() {
 
         // Reset form
         setFormData({
-          user_id: "user1",
+          user_id: "",
           make: "",
           model: "",
           year: new Date().getFullYear(),

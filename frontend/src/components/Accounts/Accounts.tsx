@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, CheckCircle2, Link as LinkIcon } from "lucide-react"
-import { useAccounts } from "@/contexts/AccountsContext"
+import { AccountType, useAccounts } from "@/contexts/AccountsContext"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type LinkingState = "initial" | "loading" | "linking" | "success"
@@ -31,9 +31,9 @@ export default function Accounts() {
       await new Promise(resolve => setTimeout(resolve, 2000))
       // Add the account to context
       addAccount({
-        bankName,
-        accountNumber,
-        accountType,
+        account_name: bankName,
+        account_number: accountNumber,
+        account_type: AccountType.BANK,
         balance: Math.random() * 10000, // Simulated balance
       })
       setLinkingState("success")

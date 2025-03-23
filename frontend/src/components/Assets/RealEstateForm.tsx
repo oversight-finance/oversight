@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAssets } from "@/contexts/AssetsContext";
+import { useAccounts } from "@/contexts/AccountsContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RealEstate } from "@/types/RealEstate";
@@ -122,6 +123,7 @@ const formatFullAddress = (address: string, city: string, state: string, zipCode
 
 export default function RealEstateForm() {
   const { addAsset } = useAssets();
+  const { getCurrentUserId } = useAccounts();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -136,7 +138,7 @@ export default function RealEstateForm() {
   
   // Initial form data with necessary RealEstate fields
   const [formData, setFormData] = useState<Partial<RealEstate> & { user_id: string }>({
-    user_id: "user1", // Default user ID
+    user_id: "", // Will be set when submitting
     property_type: "single_family" as PropertyType,
     address: "",
     purchase_price: 0,
@@ -203,10 +205,17 @@ export default function RealEstateForm() {
     setIsSubmitting(true);
 
     try {
+      // Get current user ID
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        console.error("Unable to get current user ID");
+        return;
+      }
+
       // Create a complete RealEstate object with required fields
       const realEstate: RealEstate = {
-        id: crypto.randomUUID(), // The addAsset will override this
-        user_id: formData.user_id || "user1",
+        id: "", // The backend will generate this
+        user_id: userId, // Use the actual user ID
         property_type: formData.property_type || "single_family",
         address: formData.address || "",
         purchase_price: formData.purchase_price || 0,
@@ -232,7 +241,7 @@ export default function RealEstateForm() {
 
         // Reset form
         setFormData({
-          user_id: "user1",
+          user_id: "",
           property_type: "single_family" as PropertyType,
           address: "",
           purchase_price: 0,

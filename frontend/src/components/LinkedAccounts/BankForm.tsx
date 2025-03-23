@@ -2,7 +2,7 @@ import { useState } from "react";
 import { createBankAccount } from "@/database/BankAccounts";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { BankAccountType } from "@/types/Account";
+import { BankAccountType, AccountType } from "@/types/Account";
 import { useAccounts } from "@/contexts/AccountsContext";
 
 export default function BankForm() {
@@ -29,6 +29,7 @@ export default function BankForm() {
         routing_number: formData.routing_number,
         currency: formData.currency,
         balance: formData.balance,
+        account_type: AccountType.BANK,
       });
     }
 

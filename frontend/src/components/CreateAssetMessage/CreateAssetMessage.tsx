@@ -159,7 +159,7 @@ export default function CreateAssetMessage() {
             </SelectTrigger>
             <SelectContent>
               {dialogState.type === "asset"
-                ? Object.values(AssetType).map((type) => (
+                ? Object.values(AssetType).map((type: AssetType) => (
                     <SelectItem key={type} value={type}>
                       <div className="flex items-center gap-2">
                         {assetTypeIcons[type]}

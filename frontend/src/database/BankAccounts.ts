@@ -12,7 +12,8 @@ import {
 } from "./Accounts";
 
 // Type aliases for better readability
-type BankAccountData = Omit<BankAccount, "account_id">;
+type BankAccountData = Omit<BankAccount, "user_id">;
+type CreateBankAccountData = Omit<BankAccount, "id" | "created_at" | "updated_at" | "user_id">;
 
 /**
  * Core implementation for fetching bank accounts by their account IDs
@@ -86,7 +87,7 @@ export const fetchBankAccounts = async (
  */
 const createBankAccountsCore = async (
     userId: string,
-    bankAccounts: BankAccountData[]
+    bankAccounts: CreateBankAccountData[]
 ): Promise<string[] | null> => {
     if (!userId || !bankAccounts.length) {
         console.error(
@@ -154,7 +155,7 @@ const createBankAccountsCore = async (
  */
 export const createBankAccount = async (
     userId: string,
-    bankAccount: BankAccountData
+    bankAccount: CreateBankAccountData
 ): Promise<string | null> => {
     if (!userId) {
         console.error("No user ID provided to createBankAccount");
@@ -173,7 +174,7 @@ export const createBankAccount = async (
  */
 export const createBankAccountsBatch = async (
     userId: string,
-    bankAccounts: BankAccountData[]
+    bankAccounts: CreateBankAccountData[]
 ): Promise<string[] | null> => {
     return await createBankAccountsCore(userId, bankAccounts);
 };
