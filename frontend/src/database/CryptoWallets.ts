@@ -4,6 +4,7 @@ import { createAccountsCore, deleteAccountsCore } from "./Accounts";
 
 // Type aliases for better readability
 type CryptoWalletData = Omit<CryptoWallet, "account_id">;
+export type CreateCryptoWallet = Omit<CryptoWallet, "account_id" | "id" | "user_id" | "created_at" | "updated_at">;
 
 /**
  * Core implementation for fetching crypto wallets by their account IDs
@@ -77,7 +78,7 @@ export const fetchCryptoWallets = async (
  */
 const createCryptoWalletsCore = async (
     userId: string,
-    cryptoWallets: CryptoWalletData[]
+    cryptoWallets: CreateCryptoWallet[]
 ): Promise<string[] | null> => {
     if (!userId || !cryptoWallets.length) {
         console.error(
@@ -142,7 +143,7 @@ const createCryptoWalletsCore = async (
  */
 export const createCryptoWallet = async (
     userId: string,
-    cryptoWallet: CryptoWalletData
+    cryptoWallet: CreateCryptoWallet
 ): Promise<string | null> => {
     if (!userId) {
         console.error("No user ID provided to createCryptoWallet");
