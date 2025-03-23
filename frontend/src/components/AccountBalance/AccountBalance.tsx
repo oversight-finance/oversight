@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Account } from "@/types/Account";
+import { useAccounts, Transaction } from "@/contexts/AccountsContext";
 import {
   Area,
   AreaChart,
@@ -12,6 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
+import { useEffect, useState } from "react";
 
 interface AccountBalanceProps {
   account: Account;
@@ -56,20 +58,69 @@ const formatAxisDate = (date: Date, data: BalanceDataPoint[]) => {
 };
 
 export default function AccountBalance({ account }: AccountBalanceProps) {
-  const sortedTransactions = [...(account.transactions || [])].sort(
-    (a, b) => new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime()
-  );
+  const { getTransactions } = useAccounts();
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [balancePoints, setBalancePoints] = useState<BalanceDataPoint[]>([]);
 
-  let runningBalance = 0;
-  const balancePoints: BalanceDataPoint[] = sortedTransactions.map(
-    (transaction) => {
-      runningBalance += transaction.amount;
-      return {
-        date: new Date(transaction.transactionDate),
-        balance: runningBalance,
-      };
+  // Fetch transactions when account changes
+  useEffect(() => {
+    async function fetchTransactions() {
+      const txs = await getTransactions(account.id);
+      setTransactions(txs);
+
+      if (txs && txs.length > 0) {
+        const sortedTxs = [...txs].sort((a, b) => {
+          // Handle different transaction types by checking for transaction_date property
+          const dateA =
+            "transaction_date" in a
+              ? new Date(a.transaction_date).getTime()
+              : new Date().getTime();
+          const dateB =
+            "transaction_date" in b
+              ? new Date(b.transaction_date).getTime()
+              : new Date().getTime();
+          return dateA - dateB;
+        });
+
+        let runningBalance = 0;
+        const points = sortedTxs.map((transaction) => {
+          // Get amount from transaction regardless of its type
+          const amount = "amount" in transaction ? transaction.amount : 0;
+          runningBalance += amount;
+
+          // Get date from transaction based on transaction type
+          const date =
+            "transaction_date" in transaction
+              ? new Date(transaction.transaction_date)
+              : new Date(); // Fallback date
+
+          return {
+            date,
+            balance: runningBalance,
+          };
+        });
+
+        setBalancePoints(points);
+      }
     }
-  );
+
+    fetchTransactions();
+  }, [account.id, getTransactions]);
+
+  if (transactions.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Account Balance History</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            No transactions available to display the graph.
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (balancePoints.length === 0) {
     return (
@@ -168,7 +219,7 @@ export default function AccountBalance({ account }: AccountBalanceProps) {
                 type="monotone"
                 dataKey="balance"
                 stroke="hsl(var(--chart-2))"
-                // fill={`url(#balanceGradient-${account.id})`}
+                fill={`url(#balanceGradient-${account.id})`}
                 fillOpacity={0.6}
               />
             </AreaChart>

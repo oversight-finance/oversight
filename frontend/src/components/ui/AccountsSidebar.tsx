@@ -20,7 +20,13 @@ import {
 } from "./sidebar";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import CreateAccount from "@/components/LinkedAccounts/CreateAccount";
 
 const typeIcons = {
@@ -40,7 +46,9 @@ export function AccountsSidebar() {
   const router = useRouter();
   const [openSections, setOpenSections] = useState<AccountType[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedAssetType, setSelectedAssetType] = useState<AccountType>(AccountType.BANK);
+  const [selectedAssetType, setSelectedAssetType] = useState<AccountType>(
+    AccountType.BANK
+  );
 
   const toggleSection = (type: AccountType) => {
     setOpenSections((prev) =>
@@ -95,7 +103,9 @@ export function AccountsSidebar() {
                         className="py-2 h-auto"
                       >
                         <div className="flex flex-col items-start gap-1 w-full">
-                          <span className="leading-none">{account.bankName}</span>
+                          <span className="leading-none">
+                            {account.bankName}
+                          </span>
                           <span className="text-xs text-muted-foreground leading-none">
                             {account.accountNumber}
                           </span>
@@ -120,7 +130,9 @@ export function AccountsSidebar() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Add New {typeLabels[selectedAssetType].slice(0, -1)}</DialogTitle>
+            <DialogTitle>
+              Add New {typeLabels[selectedAssetType].slice(0, -1)}
+            </DialogTitle>
           </DialogHeader>
           <CreateAccount defaultType={selectedAssetType} />
         </DialogContent>

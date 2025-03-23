@@ -1,221 +1,233 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Pencil, Trash2, X, Check } from "lucide-react"
-import { Transaction } from "@/types/Account"
-import AddTransaction from "@/components/AddTransaction/AddTransaction"
-import { formatCurrency } from "@/lib/utils"
+import * as React from "react";
+import AddTransaction from "@/components/TransactionTable/AddTransaction";
+import { ColumnDef } from "@tanstack/react-table";
+import { Badge } from "@/components/ui/badge";
+import { formatCurrency } from "@/lib/utils";
+import { DataTableColumnHeader } from "@/components/DataTable/data-table-column-header";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TrendingDown, TrendingUp } from "lucide-react";
+import { DataTable } from "@/components/DataTable/DataTable";
+import { TransactionBase } from "@/types/Transaction";
 
-interface TransactionTableProps {
-  transactions: Transaction[]
-  onDelete: (index: number) => void
-  onEdit: (index: number, transaction: Transaction) => void
-  onTransactionAdd: (transactions: Transaction[]) => void
+interface TransactionTableProps<T extends TransactionBase> {
+  transactions: T[];
+  onDelete?: (transactionId: string) => void;
+  onEdit?: (original: T, updated: Partial<T>) => void;
+  onTransactionAdd?: (transactions: T[]) => void;
+  accountType?: string; // Type of account: 'bank', 'investment', 'credit', etc.
+  title?: string; // Optional custom title for the card
+  // Custom column renderers and configurations
+  columnConfig?: Partial<
+    Record<
+      keyof T,
+      {
+        title?: string;
+        hide?: boolean;
+        sortable?: boolean;
+        render?: (value: unknown, row: T) => React.ReactNode;
+      }
+    >
+  >;
+  // Fields to exclude from automatic column generation
+  excludeFields?: Array<keyof T>;
 }
 
-export default function TransactionTable({
+// Define known field types for special rendering
+type FieldType = "date" | "amount" | "currency" | "category" | "text";
+
+export default function TransactionTable<T extends TransactionBase>({
   transactions,
   onDelete,
   onEdit,
-  onTransactionAdd
-}: TransactionTableProps) {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  onTransactionAdd,
+  title = "Transactions",
+  columnConfig = {},
+  excludeFields = [],
+}: TransactionTableProps<T>) {
+  // Generate columns dynamically based on T
+  const generateColumns = React.useCallback((): ColumnDef<T>[] => {
+    // Create selection column
+    const selectionColumn: ColumnDef<T> = {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+          className="translate-y-[2px]"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+          className="translate-y-[2px]"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    };
 
-  const handleEditClick = (index: number) => {
-    setEditingIndex(index)
-    setEditingTransaction({ ...transactions[index] })
-  }
+    // Get sample transaction to determine field types if available
+    const sampleTransaction = transactions[0] || {};
 
-  const handleEditCancel = () => {
-    setEditingIndex(null)
-    setEditingTransaction(null)
-  }
+    // Determine field types
+    const getFieldType = (key: string): FieldType => {
+      // Check field name patterns
+      if (key.includes("date")) return "date";
+      if (key.includes("amount") || key === "price" || key === "cost")
+        return "amount";
+      if (key.includes("category")) return "category";
 
-  const handleEditSave = (index: number) => {
-    if (editingTransaction) {
-      onEdit(index, editingTransaction)
-      setEditingIndex(null)
-      setEditingTransaction(null)
+      // Check value types if sample available
+      if (sampleTransaction) {
+        const value = sampleTransaction[key as keyof typeof sampleTransaction];
+        if (typeof value === "string" && !isNaN(Date.parse(value as string)))
+          return "date";
+        if (typeof value === "number") return "amount";
+      }
+
+      return "text";
+    };
+
+    // Get all keys from T type (using sample transaction or inference)
+    const allKeys = Object.keys(sampleTransaction) as Array<keyof T>;
+
+    // Filter out excluded fields
+    const visibleKeys = allKeys.filter(
+      (key) => !excludeFields.includes(key) && key !== "id" // Always exclude id from display
+    );
+
+    // Create columns for each key
+    const dynamicColumns = visibleKeys.map((key) => {
+      const fieldType = getFieldType(key as string);
+      const config = columnConfig[key] || {};
+
+      return {
+        accessorKey: key as string,
+        header: ({ column }) => (
+          <DataTableColumnHeader
+            column={column}
+            title={
+              config.title ||
+              (key as string)
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, (char) => char.toUpperCase())
+            }
+          />
+        ),
+        cell: ({ row }) => {
+          // Use custom renderer if provided
+          if (config.render) {
+            return config.render(row.getValue(key as string), row.original);
+          }
+
+          // Otherwise use default renderers based on field type
+          switch (fieldType) {
+            case "date":
+              const dateValue = row.getValue(key as string);
+              const date = dateValue
+                ? new Date(dateValue as string)
+                : new Date();
+              return <div>{date.toLocaleDateString()}</div>;
+
+            case "amount":
+              const amount = row.getValue(key as string) as number;
+              const formatted = formatCurrency(amount);
+
+              return (
+                <div className="flex items-center">
+                  {amount < 0 ? (
+                    <TrendingDown className="mr-2 h-4 w-4 text-destructive" />
+                  ) : (
+                    <TrendingUp className="mr-2 h-4 w-4 text-success" />
+                  )}
+                  <span
+                    className={amount < 0 ? "text-destructive" : "text-success"}
+                  >
+                    {formatted}
+                  </span>
+                </div>
+              );
+
+            case "category":
+              const category = row.getValue(key as string);
+              return category ? (
+                <Badge variant="outline" className="capitalize">
+                  {category as string}
+                </Badge>
+              ) : (
+                "-"
+              );
+
+            default:
+              return <div>{row.getValue(key as string) || "-"}</div>;
+          }
+        },
+        enableSorting: config.sortable !== false,
+        enableHiding: true,
+      } as ColumnDef<T>;
+    });
+
+    // Combine selection column with dynamic columns
+    return [selectionColumn, ...dynamicColumns];
+  }, [transactions, columnConfig, excludeFields]);
+
+  // Generate columns
+  const columns = React.useMemo(() => generateColumns(), [generateColumns]);
+
+  // Handle the edit and delete operations
+  const handleEdit = (row: T, updatedData: Partial<T>) => {
+    if (onEdit) {
+      onEdit(row, updatedData);
     }
-  }
+  };
 
-  const handleEditChange = (field: keyof Transaction, value: string) => {
-    if (!editingTransaction) return
-
-    const updates: Partial<Transaction> = {}
-
-    switch (field) {
-      case 'transactionDate':
-        updates.transactionDate = new Date(value).toISOString()
-        break
-      case 'amount':
-        updates.amount = parseFloat(value)
-        break
-      case 'merchant':
-        updates.merchant = value
-        break
-      case 'category':
-        updates.category = value
-        break
-      case 'description':
-        updates.description = value
-        break
-      default:
-        return
+  const handleDelete = (row: T) => {
+    if (onDelete) {
+      onDelete(row.id);
     }
+  };
 
-    setEditingTransaction({ ...editingTransaction, ...updates })
-  }
+  // Cast to compatible type for DataTable while preserving functionality
+  const compatibleData = transactions as unknown as Record<string, any>[];
+  const compatibleColumns = columns as unknown as ColumnDef<
+    Record<string, any>,
+    unknown
+  >[];
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Transactions</CardTitle>
-        <AddTransaction
-          onTransactionAdd={(parsedData) => onTransactionAdd(parsedData as Transaction[])}
-        />
-      </CardHeader>
-      <CardContent>
-        <div className="border rounded-lg">
-          <div className="max-h-[500px] overflow-auto">
-            <table className="w-full">
-              <thead className="sticky top-0 bg-background border-b">
-                <tr>
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Merchant</th>
-                  <th className="px-4 py-2 text-left">Category</th>
-                  <th className="px-4 py-2 text-left">Description</th>
-                  <th className="px-4 py-2 text-right">Amount</th>
-                  <th className="px-4 py-2 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transactions.length > 0 ? (
-                  transactions?.map((row, index) => (
-                    <tr key={row.id} className="border-b last:border-b-0">
-                      <td className="px-4 py-2">
-                        {editingIndex === index ? (
-                          <Input
-                            type="date"
-                            value={editingTransaction?.transactionDate.split('T')[0]}
-                            onChange={(e) => handleEditChange('transactionDate', e.target.value)}
-                            className="w-full"
-                          />
-                        ) : (
-                          new Date(row.transactionDate).toLocaleDateString()
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        {editingIndex === index ? (
-                          <Input
-                            type="text"
-                            value={editingTransaction?.merchant}
-                            onChange={(e) => handleEditChange('merchant', e.target.value)}
-                            className="w-full"
-                          />
-                        ) : (
-                          row.merchant
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        {editingIndex === index ? (
-                          <Input
-                            type="text"
-                            value={editingTransaction?.category}
-                            onChange={(e) => handleEditChange('category', e.target.value)}
-                            className="w-full"
-                          />
-                        ) : (
-                          row.category
-                        )}
-                      </td>
-                      <td className="px-4 py-2">
-                        {editingIndex === index ? (
-                          <Input
-                            type="text"
-                            value={editingTransaction?.description}
-                            onChange={(e) => handleEditChange('description', e.target.value)}
-                            className="w-full"
-                          />
-                        ) : (
-                          row.description
-                        )}
-                      </td>
-                      <td className={`px-4 py-2 text-right ${row.amount < 0 ? 'text-destructive' : 'text-success'}`}>
-                        {editingIndex === index ? (
-                          <Input
-                            type="number"
-                            value={editingTransaction?.amount}
-                            onChange={(e) => handleEditChange('amount', e.target.value)}
-                            className="w-full text-right"
-                            step="0.01"
-                          />
-                        ) : (
-                          formatCurrency(row.amount)
-                        )}
-                      </td>
-                      <td className="px-4 py-2 text-right">
-                        <div className="flex justify-end gap-2">
-                          {editingIndex === index ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditSave(index)}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={handleEditCancel}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => handleEditClick(index)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => onDelete(index)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
-                      No transactions found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+    <div className="space-y-4">
+      {onTransactionAdd && (
+        <div className="flex justify-end mb-2">
+          <AddTransaction
+            onTransactionAdd={(parsedData) => {
+              if (onTransactionAdd) {
+                onTransactionAdd(parsedData as unknown as T[]);
+              }
+            }}
+          />
         </div>
-      </CardContent>
-    </Card>
-  )
-} 
+      )}
+
+      <DataTable
+        columns={compatibleColumns}
+        data={compatibleData}
+        title={title}
+        onEdit={
+          onEdit
+            ? (row, updatedRow) =>
+                handleEdit(row as T, updatedRow as Partial<T>)
+            : undefined
+        }
+        onDelete={onDelete ? (row) => handleDelete(row as T) : undefined}
+      />
+    </div>
+  );
+}

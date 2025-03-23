@@ -3,22 +3,31 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAssets } from "@/contexts/AssetsContext";
-import { Asset, AssetType } from "@/types/Account";
+import { AssetType } from "@/types/Asset";
 import { Button } from "@/components/ui/button";
-import { 
-  VehicleDetails, 
-  RealEstateDetails, 
-  StockDetails, 
-  CryptoDetails 
+import {
+  VehicleDetails,
+  RealEstateDetails,
+  StockDetails,
+  CryptoDetails,
 } from "./components";
+import { Vehicle } from "@/types/Vehicle";
+import { RealEstate } from "@/types/RealEstate";
 
-export default function AssetDetailsPage({ params }: { params: { id: string } }) {
+// Union type for all possible asset types
+type AssetUnion = Vehicle | RealEstate;
+
+export default function AssetDetailsPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const { assets } = useAssets();
-  const [asset, setAsset] = useState<Asset | null>(null);
+  const [asset, setAsset] = useState<AssetUnion | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    const foundAsset = assets.find(a => a.id === params.id);
+    const foundAsset = assets.find((a) => a.id === params.id);
     if (foundAsset) {
       setAsset(foundAsset);
     }
@@ -35,12 +44,34 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
     );
   }
 
+  // Determine asset type
+  const getAssetType = (): AssetType => {
+    if ("make" in asset && "model" in asset) {
+      return AssetType.VEHICLE;
+    } else if ("property_type" in asset) {
+      return AssetType.REAL_ESTATE;
+    }
+    return AssetType.STOCK; // Default fallback
+  };
+
+  const assetType = getAssetType();
+
+  // Get a display name for the asset
+  const getAssetName = (): string => {
+    if ("make" in asset && "model" in asset) {
+      return `${asset.year} ${asset.make} ${asset.model}`;
+    } else if ("property_type" in asset) {
+      return asset.address || "Real Estate Property";
+    }
+    return "Asset";
+  };
+
   const renderAssetDetails = () => {
-    switch (asset.type) {
+    switch (assetType) {
       case AssetType.VEHICLE:
-        return <VehicleDetails asset={asset} />;
+        return <VehicleDetails asset={asset as Vehicle} />;
       case AssetType.REAL_ESTATE:
-        return <RealEstateDetails asset={asset} />;
+        return <RealEstateDetails asset={asset as RealEstate} />;
       case AssetType.STOCK:
         return <StockDetails asset={asset} />;
       case AssetType.CRYPTO:
@@ -48,7 +79,9 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
       default:
         return (
           <div className="flex items-center justify-center h-[300px]">
-            <p className="text-muted-foreground">Details not available for this asset type</p>
+            <p className="text-muted-foreground">
+              Details not available for this asset type
+            </p>
           </div>
         );
     }
@@ -57,17 +90,17 @@ export default function AssetDetailsPage({ params }: { params: { id: string } })
   return (
     <div className="container py-6">
       <div className="mb-6">
-        <Button 
-          variant="outline" 
+        <Button
+          variant="outline"
           onClick={() => router.push("/dashboard")}
           className="mb-4"
         >
           Back to Dashboard
         </Button>
-        <h1 className="text-2xl font-bold">{asset.name}</h1>
+        <h1 className="text-2xl font-bold">{getAssetName()}</h1>
       </div>
-      
+
       {renderAssetDetails()}
     </div>
   );
-} 
+}
