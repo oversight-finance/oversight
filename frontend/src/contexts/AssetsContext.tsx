@@ -4,17 +4,18 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { Vehicle } from "../types/Vehicle";
 import { RealEstate } from "../types/RealEstate";
 import { AssetType } from "../types/Asset";
-import { 
-  fetchUserVehicles, 
-  createVehicle, 
-  updateVehicle, 
-  deleteVehicle 
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  fetchUserVehicles,
+  createVehicle,
+  updateVehicle,
+  deleteVehicle,
 } from "@/database/Vehicles";
 import {
   fetchUserRealEstate,
   createRealEstate,
   updateRealEstate,
-  deleteRealEstate
+  deleteRealEstate,
 } from "@/database/RealEstate";
 
 // Define a type that represents either a Vehicle or RealEstate
@@ -22,12 +23,12 @@ export type Asset = Vehicle | RealEstate;
 
 // Helper to determine if an asset is a Vehicle
 const isVehicle = (asset: Asset): asset is Vehicle => {
-  return 'make' in asset && 'model' in asset;
+  return "make" in asset && "model" in asset;
 };
 
 // Helper to determine if an asset is Real Estate
 const isRealEstate = (asset: Asset): asset is RealEstate => {
-  return 'property_type' in asset && 'address' in asset;
+  return "property_type" in asset && "address" in asset;
 };
 
 // Calculate current value based on purchase price, date, and rate (appreciation or depreciation)
@@ -59,63 +60,15 @@ const calculateCurrentValue = (
   return Math.round(currentValue * 100) / 100;
 };
 
-// Default vehicle asset that will always be present
-const vehiclePurchaseDate = "2022-06-15";
-const vehiclePurchaseValue = 25000;
-const vehicleDepreciationRate = 15;
-
-const defaultVehicle: Vehicle = {
-  id: "default-vehicle-asset",
-  user_id: "default-user",
-  make: "Toyota",
-  model: "Camry",
-  year: 2022,
-  purchase_price: vehiclePurchaseValue,
-  current_value: calculateCurrentValue(
-    vehiclePurchaseValue,
-    vehiclePurchaseDate,
-    vehicleDepreciationRate,
-    true
-  ),
-  purchase_date: vehiclePurchaseDate,
-  vin: "1HGCM82633A123456",
-  currency: "USD",
-  created_at: vehiclePurchaseDate,
-  updated_at: vehiclePurchaseDate,
-};
-
-// Default real estate asset that will always be present
-const realEstatePurchaseDate = "2021-03-10";
-const realEstatePurchaseValue = 350000;
-const realEstateAppreciationRate = 3.5;
-
-const defaultRealEstate: RealEstate = {
-  id: "default-real-estate-asset",
-  user_id: "default-user",
-  property_type: "Single Family",
-  address: "123 Main Street, Springfield, IL 62704, USA",
-  purchase_price: realEstatePurchaseValue,
-  current_value: calculateCurrentValue(
-    realEstatePurchaseValue,
-    realEstatePurchaseDate,
-    realEstateAppreciationRate
-  ),
-  purchase_date: realEstatePurchaseDate,
-  mortgage_balance: 300000,
-  mortgage_interest_rate: 3.25,
-  mortgage_term_years: 30,
-  property_tax_annual: 4200,
-  currency: "USD",
-  created_at: realEstatePurchaseDate,
-  updated_at: realEstatePurchaseDate,
-};
-
 interface AssetsContextType {
   assets: Asset[];
   isLoading: boolean;
   addAsset: (asset: Vehicle | RealEstate) => Promise<string | null>;
   removeAsset: (id: string) => Promise<boolean>;
-  updateAsset: (id: string, updates: Partial<Vehicle | RealEstate>) => Promise<boolean>;
+  updateAsset: (
+    id: string,
+    updates: Partial<Vehicle | RealEstate>
+  ) => Promise<boolean>;
   refreshAssets: () => Promise<void>;
 }
 
@@ -123,30 +76,33 @@ const AssetsContext = createContext<AssetsContextType | null>(null);
 
 export function AssetsProvider({ children }: { children: React.ReactNode }) {
   // Initialize with default assets
-  const [assets, setAssets] = useState<Asset[]>([
-    defaultVehicle,
-    defaultRealEstate,
-  ]);
+  const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const userId = "default-user"; // In a real app, this would come from auth
-
+  const { getUserId } = useAuth(); // Get the getUserId method from AuthContext
+  const userId = getUserId();
   // Fetch assets on mount
   useEffect(() => {
     refreshAssets();
-  }, []);
+  }, [userId]);
 
   const refreshAssets = async () => {
     setIsLoading(true);
     try {
+      if (!userId) {
+        console.error("No user ID available");
+        setAssets([]);
+        return;
+      }
+
       // Fetch both types of assets
       const [vehicles, realEstateProperties] = await Promise.all([
         fetchUserVehicles(userId),
-        fetchUserRealEstate(userId)
+        fetchUserRealEstate(userId),
       ]);
 
       // If there are no assets in the database, add the default ones
       if (vehicles.length === 0 && realEstateProperties.length === 0) {
-        setAssets([defaultVehicle, defaultRealEstate]);
+        // setAssets([defaultVehicle, defaultRealEstate]);
       } else {
         // Combine all assets
         const allAssets: Asset[] = [...vehicles, ...realEstateProperties];
@@ -159,10 +115,12 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const addAsset = async (newAsset: Vehicle | RealEstate): Promise<string | null> => {
+  const addAsset = async (
+    newAsset: Vehicle | RealEstate
+  ): Promise<string | null> => {
     try {
       let id: string | null = null;
-      
+
       // Determine asset type and use appropriate database function
       if (isVehicle(newAsset)) {
         const { id: _, created_at, updated_at, ...vehicleData } = newAsset;
@@ -185,14 +143,9 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
   };
 
   const removeAsset = async (id: string): Promise<boolean> => {
-    // Don't allow removing the default assets
-    if (id === defaultVehicle.id || id === defaultRealEstate.id) {
-      return false;
-    }
-
     try {
       // Find the asset to determine its type
-      const asset = assets.find(a => a.id === id);
+      const asset = assets.find((a) => a.id === id);
       let success = false;
 
       if (asset) {
@@ -215,20 +168,33 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const updateAsset = async (id: string, updates: Partial<Vehicle | RealEstate>): Promise<boolean> => {
+  const updateAsset = async (
+    id: string,
+    updates: Partial<Vehicle | RealEstate>
+  ): Promise<boolean> => {
     try {
       // Find the asset to determine its type
-      const asset = assets.find(a => a.id === id);
+      const asset = assets.find((a) => a.id === id);
       let success = false;
 
       if (asset) {
         if (isVehicle(asset)) {
           // Ensure we're only updating valid fields for Vehicle
-          const { id: _, created_at, updated_at, ...validUpdates } = updates as Partial<Vehicle>;
+          const {
+            id: _,
+            created_at,
+            updated_at,
+            ...validUpdates
+          } = updates as Partial<Vehicle>;
           success = await updateVehicle(id, validUpdates);
         } else if (isRealEstate(asset)) {
           // Ensure we're only updating valid fields for RealEstate
-          const { id: _, created_at, updated_at, ...validUpdates } = updates as Partial<RealEstate>;
+          const {
+            id: _,
+            created_at,
+            updated_at,
+            ...validUpdates
+          } = updates as Partial<RealEstate>;
           success = await updateRealEstate(id, validUpdates);
         }
 
@@ -247,7 +213,14 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AssetsContext.Provider
-      value={{ assets, isLoading, addAsset, removeAsset, updateAsset, refreshAssets }}
+      value={{
+        assets,
+        isLoading,
+        addAsset,
+        removeAsset,
+        updateAsset,
+        refreshAssets,
+      }}
     >
       {children}
     </AssetsContext.Provider>

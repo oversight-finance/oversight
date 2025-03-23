@@ -36,6 +36,7 @@ type AuthContextType = AuthState & {
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUserProfile: () => Promise<void>;
+  getUserId: () => string | null;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -56,7 +57,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Only fetch profile if we already have a user
       if (authState.user?.id) {
         const profile = await fetchUserProfile(authState.user.id);
-        
+
         setAuthState((current) => ({
           ...current,
           user: current.user ? { ...current.user, profile } : null,
@@ -76,7 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const {
           data: { session },
         } = await supabase.auth.getSession();
-        
+
         // Set initial state with session data
         let initialState: AuthState = {
           user: null,
@@ -84,7 +85,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           isLoading: false,
           userProfile: null,
         };
-        
+
         // Only fetch user profile if we have a session
         if (session?.user) {
           const profile = await fetchUserProfile(session.user.id);
@@ -95,7 +96,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             userProfile: profile,
           };
         }
-        
+
         setAuthState(initialState);
 
         // Listen for auth changes
@@ -110,7 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               isLoading: false,
               userProfile: null,
             };
-            
+
             // Only fetch profile on SIGNED_IN
             if (event === "SIGNED_IN" && session?.user) {
               const profile = await fetchUserProfile(session.user.id);
@@ -122,16 +123,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               };
               router.refresh();
             }
-            
+
             // Just clear state and redirect on SIGNED_OUT
             if (event === "SIGNED_OUT") {
               router.refresh();
               router.push("/auth/login");
             }
-            
+
             setAuthState(newState);
           }
-          
+
           // For token refresh events, just update the session
           if (event === "TOKEN_REFRESHED" && session) {
             setAuthState((current) => ({
@@ -211,7 +212,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         password,
       });
       if (error) throw error;
-      
+
       // Let onAuthStateChange handle the state update
       // No need to call refreshUserProfile separately
     } catch (error: unknown) {
@@ -226,7 +227,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       // Let onAuthStateChange handle the state update
     } catch (error: unknown) {
       const errorMessage =
@@ -241,6 +242,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     signIn,
     signOut,
     refreshUserProfile,
+    getUserId: () => authState.user?.id || null,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

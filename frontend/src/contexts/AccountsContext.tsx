@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Account,
   AccountType,
@@ -55,9 +56,6 @@ export type AccountsContextType = {
   addAccount: (
     account: Omit<Account, "id" | "created_at" | "updated_at">
   ) => Promise<Account | null>;
-
-  // Current user
-  getCurrentUserId: () => Promise<string | null>;
 };
 
 const AccountsContext = createContext<AccountsContextType | null>(null);
@@ -66,24 +64,14 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
   const [accounts, setAccounts] = useState<AccountWithTransactions[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const { getUserId } = useAuth();
   const supabase = createClient();
+  const userId = getUserId();
 
   // Fetch accounts on mount
   useEffect(() => {
     refreshAccounts();
-  }, []);
-
-  // Get the current user ID - useful for components to have access to
-  const getCurrentUserId = async (): Promise<string | null> => {
-    try {
-      const { data, error } = await supabase.auth.getUser();
-      if (error) throw error;
-      return data.user?.id || null;
-    } catch (error) {
-      console.error("Error getting current user:", error);
-      return null;
-    }
-  };
+  }, [userId]);
 
   // Refresh all accounts data - the main state management function
   const refreshAccounts = async () => {
@@ -91,7 +79,6 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setError(null);
 
-      const userId = await getCurrentUserId();
       if (!userId) {
         setError("User not authenticated");
         setIsLoading(false);
@@ -234,9 +221,6 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
         refreshAccounts,
         getTransactions,
         addAccount,
-
-        // User info
-        getCurrentUserId,
       }}
     >
       {children}
