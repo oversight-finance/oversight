@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/contexts/AccountsContext";
 import { toast } from "@/hooks/use-toast";
 import { AccountType } from "@/types/Account";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Define common cryptocurrencies for the dropdown
 const commonCoins = [
@@ -36,7 +37,8 @@ const commonCoins = [
 ];
 
 export default function CryptoWalletForm() {
-  const { getCurrentUserId, refreshAccounts } = useAccounts();
+  const { refreshAccounts } = useAccounts();
+  const { getUserId } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     wallet_name: "",
@@ -50,7 +52,7 @@ export default function CryptoWalletForm() {
     setIsSubmitting(true);
 
     try {
-      const userId = await getCurrentUserId();
+      const userId = await getUserId();
 
       if (!userId) {
         toast({
@@ -68,6 +70,8 @@ export default function CryptoWalletForm() {
         coin_symbol: formData.coin_symbol.toUpperCase(),
         balance: formData.balance,
       };
+
+      console.log("wallet", wallet);
 
       const walletId = await createCryptoWallet(userId, wallet);
 

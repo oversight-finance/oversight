@@ -81,7 +81,6 @@ CREATE TABLE IF NOT EXISTS public.crypto_wallet_transactions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   account_id uuid NOT NULL REFERENCES public.crypto_wallets(account_id) ON DELETE CASCADE,
   transaction_date timestamptz DEFAULT now() NOT NULL,
-  transaction_type text NOT NULL, -- e.g., 'buy', 'sell', 'transfer', 'stake', 'unstake', etc.
   amount numeric(16, 8) NOT NULL, -- Crypto amount
   price_at_transaction numeric(16, 2) NOT NULL, -- Price in fiat at transaction time
   fee numeric(12, 2), -- Transaction fee
