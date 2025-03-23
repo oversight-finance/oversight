@@ -2,19 +2,19 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import { Account } from "@/types/Account";
-import { BankTransaction } from "@/types/Transaction";
 import { createClient } from "@/utils/supabase/client";
 import { fetchUserAccounts } from "@/database/Accounts";
 import { fetchAccountTransactions as fetchTxs } from "@/database/Transactions";
+import { BankAccountTransaction } from "@/types/Transaction";
 
 // Export database functions directly so components can use them
 export type { Account, AccountType } from "@/types/Account";
-export type { BankTransaction } from "@/types/Transaction";
+export type { BankAccountTransaction } from "@/types/Transaction";
 export * from "@/database/Accounts";
 export * from "@/database/Transactions";
 
 // Define the Transaction type that will be used throughout the UI
-export type Transaction = Omit<BankTransaction, "transaction_date"> & {
+export type Transaction = Omit<BankAccountTransaction, "transaction_date"> & {
   transaction_date: string;
 };
 

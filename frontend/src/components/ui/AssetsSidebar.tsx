@@ -31,7 +31,7 @@ import VehicleForm from "@/components/Assets/VehicleForm";
 import RealEstateForm from "@/components/Assets/RealEstateForm";
 import BankForm from "@/components/LinkedAccounts/BankForm";
 import { Account, AccountType, BankAccount } from "@/types/Account";
-import { fetchBankAccounts } from "@/database/Accounts";
+import { fetchBankAccounts } from "@/database/BankAccounts";
 import React from "react";
 
 const assetTypeIcons = {
