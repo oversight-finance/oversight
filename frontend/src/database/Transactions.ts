@@ -95,15 +95,11 @@ const createTransactionsCore = async (
   try {
     const supabase = createClient();
 
-    const now = new Date().toISOString();
-    const preparedTransactions = transactions.map((tx) => ({
-      ...tx,
-      transaction_date: now,
-    }));
 
+    console.log("preparedTransactions", transactions);
     const { data, error } = await supabase
       .from("bank_accounts_transactions")
-      .insert(preparedTransactions)
+      .insert(transactions)
       .select("id, account_id");
 
     if (error) {

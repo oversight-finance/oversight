@@ -223,6 +223,7 @@ const createVehiclesCore = async (
  * @returns The created vehicle ID or null if creation failed
  */
 export const createVehicle = async (vehicle: VehicleData): Promise<string | null> => {
+  console.log("CREATING VEHICLE", vehicle);
     const results = await createVehiclesCore([vehicle]);
     return results ? results[0].id : null;
 };

@@ -11,7 +11,6 @@ export interface RealEstate {
     property_type: string; // 'residential', 'commercial', 'land'
     address: string;
     purchase_price: number;
-    current_value: number;
     purchase_date: string;
     mortgage_balance?: number;
     mortgage_interest_rate?: number;
@@ -20,6 +19,8 @@ export interface RealEstate {
     currency: string;
     created_at: string;
     updated_at: string;
+    annual_growth_rate?: number;
+    current_value?: number;
 }
 
 /**
@@ -39,16 +40,3 @@ export interface RealEstatePrice {
 export interface RealEstateWithPrices extends RealEstate {
     prices: RealEstatePrice[];
 }
-
-/**
- * Calculates the return on investment for a real estate property
- */
-export const calculateRealEstateROI = (realEstate: RealEstate): number | null => {
-    if (realEstate.purchase_price === 0) {
-        return null;
-    }
-
-    return (
-        ((realEstate.current_value - realEstate.purchase_price) / realEstate.purchase_price) * 100
-    );
-}; 

@@ -5,10 +5,12 @@ import {
   fetchBankAccountTransactions,
   deleteBankTransaction,
   updateBankTransaction,
+  deleteBankTransactionBatch,
 } from "@/database/Transactions";
 import TransactionTable from "../TransactionTable";
 import { BankAccountTransaction } from "@/types";
 import { toast } from "@/hooks/use-toast";
+import { Loader2 } from "lucide-react";
 
 interface BankTransactionTableProps {
   accountId: string;
@@ -23,7 +25,7 @@ export default function BankTransactionTable({
     BankAccountTransaction[]
   >([]);
   const [loading, setLoading] = React.useState(true);
-  const [, setIsSubmitting] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Function to refresh transactions
   const refreshTransactions = React.useCallback(async () => {
@@ -89,6 +91,18 @@ export default function BankTransactionTable({
     original: BankAccountTransaction,
     updated: Partial<BankAccountTransaction>
   ) => {
+    // Check if updated object is empty or has no changes
+    // This prevents immediate processing when the modal first opens
+    const hasChanges =
+      Object.keys(updated).length > 0 &&
+      Object.keys(updated).some(
+        (key) =>
+          updated[key as keyof BankAccountTransaction] !==
+          original[key as keyof BankAccountTransaction]
+      );
+
+    if (!hasChanges) return;
+
     setIsSubmitting(true);
     const loadingToast = toast({
       title: "Processing",
@@ -139,6 +153,77 @@ export default function BankTransactionTable({
     await refreshTransactions();
   };
 
+  // Handle multi-delete transactions
+  const handleMultiDelete = async (
+    selectedTransactions: BankAccountTransaction[]
+  ) => {
+    if (selectedTransactions.length === 0) return;
+
+    setIsSubmitting(true);
+    const loadingToast = toast({
+      title: "Processing",
+      description: `Deleting ${selectedTransactions.length} transactions...`,
+    });
+
+    try {
+      // Extract transaction IDs
+      const transactionIds = selectedTransactions.map(
+        (transaction) => transaction.id
+      );
+
+      // Use the batch delete function
+      const results = await deleteBankTransactionBatch(transactionIds);
+
+      // Count successful deletions
+      let successCount = 0;
+      const deletedIds: string[] = [];
+
+      // Process results
+      results.forEach((success, id) => {
+        if (success) {
+          successCount++;
+          deletedIds.push(id);
+        }
+      });
+
+      // Remove successfully deleted transactions from state
+      if (successCount > 0) {
+        setTransactions((prev) =>
+          prev.filter((t) => !deletedIds.includes(t.id))
+        );
+
+        toast({
+          title: "Success",
+          description: `${successCount} transaction${
+            successCount !== 1 ? "s" : ""
+          } deleted successfully`,
+        });
+      }
+
+      // Report failures if any
+      const failureCount = selectedTransactions.length - successCount;
+      if (failureCount > 0) {
+        toast({
+          title: "Warning",
+          description: `Failed to delete ${failureCount} transaction${
+            failureCount !== 1 ? "s" : ""
+          }`,
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error("Error deleting multiple transactions:", error);
+      toast({
+        title: "Error",
+        description: "Failed to delete transactions",
+        variant: "destructive",
+      });
+    } finally {
+      loadingToast.dismiss();
+      setIsSubmitting(false);
+    }
+  };
+
   // Column configuration for bank transactions
   const columnConfig = React.useMemo(
     () => ({
@@ -167,16 +252,21 @@ export default function BankTransactionTable({
   return (
     <div>
       {loading ? (
-        <div className="flex justify-center p-4">Loading transactions...</div>
+        <div className="flex flex-col items-center justify-center p-8">
+          <Loader2 className="h-8 w-8 animate-spin mb-2" />
+          <p>Loading transactions...</p>
+        </div>
       ) : (
         <TransactionTable<BankAccountTransaction>
           transactions={transactions}
           onDelete={handleDelete}
           onEdit={handleEdit}
           onTransactionAdd={handleTransactionAdd}
+          onMultiDelete={handleMultiDelete}
           title={title}
           columnConfig={columnConfig}
           excludeFields={excludeFields}
+          isSubmitting={isSubmitting}
         />
       )}
     </div>

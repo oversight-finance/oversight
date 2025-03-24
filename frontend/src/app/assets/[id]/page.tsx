@@ -71,7 +71,7 @@ export default function AssetDetailsPage({
       case AssetType.VEHICLE:
         return <VehicleDetails asset={asset as Vehicle} />;
       case AssetType.REAL_ESTATE:
-        return <RealEstateDetails asset={asset as RealEstate} />;
+        return <RealEstateDetails realEstate={asset as RealEstate} />;
       case AssetType.STOCK:
         return <StockDetails asset={asset} />;
       case AssetType.CRYPTO:

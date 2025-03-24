@@ -22,6 +22,10 @@ import {
 // Define a type that handles all transaction types
 type AnyTransaction = Transaction;
 
+interface SpendingChartProps {
+  timeRange?: "3M" | "6M" | "1Y" | "2Y" | "ALL";
+}
+
 interface SpendingData {
   name: string;
   value: number;
@@ -67,13 +71,47 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null;
 };
 
-export default function SpendingChart() {
+// Helper function to filter transactions by time range
+const filterTransactionsByTimeRange = (
+  transactions: any[],
+  timeRange: "3M" | "6M" | "1Y" | "2Y" | "ALL"
+) => {
+  if (timeRange === "ALL") return transactions;
+
+  // Get current date
+  const now = new Date();
+  const monthsToInclude =
+    timeRange === "3M"
+      ? 3
+      : timeRange === "6M"
+      ? 6
+      : timeRange === "1Y"
+      ? 12
+      : 24;
+
+  // Calculate cutoff date
+  const cutoffDate = new Date(now);
+  cutoffDate.setMonth(now.getMonth() - monthsToInclude);
+
+  // Filter transactions for dates after cutoff
+  return transactions.filter((t) => {
+    const date = new Date((t as AnyTransaction).transaction_date);
+    return date >= cutoffDate;
+  });
+};
+
+export default function SpendingChart({
+  timeRange = "1Y",
+}: SpendingChartProps) {
   const { accounts } = useAccounts();
 
   // Get all transactions and filter out positive amounts (income)
-  const allTransactions = accounts.flatMap((account) =>
+  let allTransactions = accounts.flatMap((account) =>
     (account.transactions || []).filter((t) => (t as AnyTransaction).amount < 0)
   );
+
+  // Apply time range filtering
+  allTransactions = filterTransactionsByTimeRange(allTransactions, timeRange);
 
   // Group transactions by category and calculate total spending
   const spendingByCategory = allTransactions.reduce((acc, transaction) => {

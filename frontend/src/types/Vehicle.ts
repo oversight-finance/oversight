@@ -21,7 +21,6 @@ export interface Vehicle {
     model: string;
     year: number;
     purchase_price?: number;
-    current_value?: number;
     purchase_date?: string;
     vin?: string;
     currency: string;
@@ -33,8 +32,9 @@ export interface Vehicle {
     loan_end_date?: string;
     interest_rate?: number;
     loan_term_months?: number;
-    monthly_payment?: number;
     lease_term_months?: number;
+    annual_growth_rate?: number;
+    current_value?: number;
 }
 
 /**
@@ -55,22 +55,7 @@ export interface VehicleWithPrices extends Vehicle {
     prices: VehiclePrice[];
 }
 
-/**
- * Calculates the return on investment for a vehicle
- */
-export const calculateVehicleROI = (vehicle: Vehicle): number | null => {
-    if (
-        !vehicle.purchase_price ||
-        !vehicle.current_value ||
-        vehicle.purchase_price === 0
-    ) {
-        return null;
-    }
 
-    return (
-        ((vehicle.current_value - vehicle.purchase_price) / vehicle.purchase_price) * 100
-    );
-};
 
 /**
  * Calculates the remaining loan balance for a vehicle
@@ -105,7 +90,7 @@ export const calculateRemainingLoanBalance = (vehicle: Vehicle): number | null =
     const totalPayments = vehicle.loan_term_months;
     
     // Calculate monthly payment if not provided
-    const payment = vehicle.monthly_payment || 
+    const payment = 
         (vehicle.loan_amount * monthlyInterestRate * Math.pow(1 + monthlyInterestRate, totalPayments)) / 
         (Math.pow(1 + monthlyInterestRate, totalPayments) - 1);
     

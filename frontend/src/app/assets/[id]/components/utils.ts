@@ -1,28 +1,35 @@
 import { formatTotalAmount } from "@/lib/utils";
 
 /**
- * Calculates depreciation over time
+ * Calculates asset value growth over time
+ * Use positive growth rate for appreciation, negative for depreciation
+ * 
+ * @param initialValue Initial asset value
+ * @param growthRate Annual growth rate (percentage: positive for appreciation, negative for depreciation)
+ * @param months Number of months to calculate
+ * @param startDate Starting date in ISO format
+ * @returns Array of monthly values with date and calculated value
  */
-export const calculateDepreciation = (
-  initialValue: number, 
-  depreciationRate: number, 
+export const calculateAssetGrowth = (
+  initialValue: number,
+  growthRate: number,
   months: number,
   startDate: string
 ): { month: string; value: number }[] => {
   const result: { month: string; value: number }[] = [];
-  const monthlyRate = depreciationRate / 12 / 100;
+  const monthlyRate = growthRate / 12 / 100;
   const startDateObj = new Date(startDate);
   
   for (let i = 0; i <= months; i++) {
     const date = new Date(startDateObj);
     date.setMonth(date.getMonth() + i);
     
-    // Calculate depreciated value using compound depreciation
-    const depreciatedValue = initialValue * Math.pow(1 - monthlyRate, i);
+    // Calculate value using compound growth formula
+    const newValue = initialValue * Math.pow(1 + monthlyRate, i);
     
     result.push({
       month: date.toISOString().split('T')[0].substring(0, 7), // YYYY-MM format
-      value: Math.round(depreciatedValue * 100) / 100
+      value: Math.round(newValue * 100) / 100
     });
   }
   
@@ -30,7 +37,7 @@ export const calculateDepreciation = (
 };
 
 /**
- * Calculates appreciation over time
+ * @deprecated Use calculateAssetGrowth with positive rate instead
  */
 export const calculateAppreciation = (
   initialValue: number, 
@@ -38,24 +45,19 @@ export const calculateAppreciation = (
   months: number,
   startDate: string
 ): { month: string; value: number }[] => {
-  const result: { month: string; value: number }[] = [];
-  const monthlyRate = appreciationRate / 12 / 100;
-  const startDateObj = new Date(startDate);
-  
-  for (let i = 0; i <= months; i++) {
-    const date = new Date(startDateObj);
-    date.setMonth(date.getMonth() + i);
-    
-    // Calculate appreciated value using compound appreciation
-    const appreciatedValue = initialValue * Math.pow(1 + monthlyRate, i);
-    
-    result.push({
-      month: date.toISOString().split('T')[0].substring(0, 7), // YYYY-MM format
-      value: Math.round(appreciatedValue * 100) / 100
-    });
-  }
-  
-  return result;
+  return calculateAssetGrowth(initialValue, appreciationRate, months, startDate);
+};
+
+/**
+ * @deprecated Use calculateAssetGrowth with negative rate instead
+ */
+export const calculateDepreciation = (
+  initialValue: number, 
+  depreciationRate: number, 
+  months: number,
+  startDate: string
+): { month: string; value: number }[] => {
+  return calculateAssetGrowth(initialValue, -depreciationRate, months, startDate);
 };
 
 /**

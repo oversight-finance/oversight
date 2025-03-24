@@ -20,6 +20,7 @@ interface DataPoint {
 
 interface MonthlyGraphProps {
   type: "income" | "spending";
+  timeRange?: "3M" | "6M" | "1Y" | "2Y" | "ALL";
 }
 
 const CHART_CONFIGS = {
@@ -41,20 +42,51 @@ const CHART_CONFIGS = {
   },
 };
 
+// Helper function to filter data by time range
+const filterDataByTimeRange = (
+  data: DataPoint[],
+  timeRange: "3M" | "6M" | "1Y" | "2Y" | "ALL"
+) => {
+  if (!data.length || timeRange === "ALL") return data;
+
+  // Get current date
+  const now = new Date();
+  const monthsToInclude =
+    timeRange === "3M"
+      ? 3
+      : timeRange === "6M"
+      ? 6
+      : timeRange === "1Y"
+      ? 12
+      : 24;
+
+  // Calculate cutoff date
+  const cutoffDate = new Date(now);
+  cutoffDate.setMonth(now.getMonth() - monthsToInclude);
+
+  // Filter data for dates after cutoff
+  return data.filter((point) => point.date >= cutoffDate);
+};
+
 const formatAxisDate = (date: Date) => {
   return date.toLocaleString("default", { month: "short" });
 };
 
-export default function MonthlyGraph({ type }: MonthlyGraphProps) {
+export default function MonthlyGraph({
+  type,
+  timeRange = "1Y",
+}: MonthlyGraphProps) {
   const { accounts } = useAccounts();
   const config = CHART_CONFIGS[type];
 
   // Get filtered transactions
   const allTransactions = accounts.flatMap((account) =>
-    ((account as any).transactions || []).filter(config.filterFn).map((transaction: Transaction) => ({
-      date: new Date(transaction.transaction_date),
-      amount: config.transformAmount(transaction.amount),
-    }))
+    ((account as any).transactions || [])
+      .filter(config.filterFn)
+      .map((transaction: Transaction) => ({
+        date: new Date(transaction.transaction_date),
+        amount: config.transformAmount(transaction.amount),
+      }))
   );
 
   // Calculate total
@@ -72,9 +104,12 @@ export default function MonthlyGraph({ type }: MonthlyGraphProps) {
   }, {} as Record<string, DataPoint>);
 
   // Convert to array and sort by date
-  const chartData = (Object.values(monthlyData) as DataPoint[]).sort(
+  let chartData = (Object.values(monthlyData) as DataPoint[]).sort(
     (a, b) => a.date.getTime() - b.date.getTime()
   );
+
+  // Apply time range filtering
+  chartData = filterDataByTimeRange(chartData, timeRange);
 
   if (chartData.length === 0) {
     return (
