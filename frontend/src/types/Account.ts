@@ -7,10 +7,12 @@ import { BankAccountTransaction } from "@/types/Transaction";
  */
 export enum AccountType {
   BANK = "bank",
-  INVESTMENT = "investment",
   CRYPTO = "crypto",
   CREDIT = "credit",
   SAVINGS = "savings",
+  INVESTMENT = "investment",
+  REAL_ESTATE = "real_estate",
+  VEHICLE = "vehicle",
 }
 
 /**
@@ -51,12 +53,12 @@ export type CryptoWallet = Account & {
  * Investment account type matching investment_accounts table
  */
 export type InvestmentAccount = Account & {
-  investment_type: string; // e.g., 'RRSP', 'TFSA', 'General'
+  account_type: string; // e.g., 'RRSP', 'TFSA', 'General'
   institution: string;
   account_number?: string;
   contribution_room?: number;
-  balance: number;
   currency: string;
+  account_name: string;
 };
 
 /**
@@ -78,9 +80,7 @@ export type BankAccountWithTransactions = Account & {
 /**
  * Use this to calculate the current balance based on transactions
  */
-export const calculateAccountBalance = (
-  transactions: BankAccountTransaction[]
-): number => {
+export const calculateAccountBalance = (transactions: BankAccountTransaction[]): number => {
   return transactions.reduce((sum, transaction) => sum + transaction.amount, 0);
 };
 
