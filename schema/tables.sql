@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS public.investment_accounts (
   contribution_room numeric(12, 2), -- For registered accounts like RRSP, TFSA
   balance numeric(12, 2) NOT NULL,
   currency text DEFAULT 'CAD',
+  account_name text NOT NULL,
   PRIMARY KEY (account_id)
 );
 ALTER TABLE public.investment_accounts ENABLE ROW LEVEL SECURITY;

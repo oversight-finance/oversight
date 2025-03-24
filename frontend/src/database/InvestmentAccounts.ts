@@ -3,43 +3,35 @@ import { Account, AccountType, InvestmentAccount, InvestmentAccountWithTransacti
 import { createAccountsCore, deleteAccountsCore } from "./Accounts";
 import { InvestmentTransaction } from "@/types";
 
-// Type aliases for better readability
-type InvestmentAccountData = Omit<InvestmentAccount, "account_id">;
-
 /**
  * Core implementation for fetching investment accounts by their account IDs
  * @param accountIds Array of account IDs to fetch investment accounts for
  * @returns Map of account IDs to investment accounts, or empty map if none found
  */
-const fetchInvestmentAccountsCore = async (
-    accountIds: string[]
-): Promise<Map<string, InvestmentAccount>> => {
-    if (!accountIds.length) return new Map();
+const fetchInvestmentAccountsCore = async (accountIds: string[]): Promise<Map<string, InvestmentAccount>> => {
+  if (!accountIds.length) return new Map();
 
-    try {
-        const supabase = createClient();
-        const results = new Map<string, InvestmentAccount>();
+  try {
+    const supabase = createClient();
+    const results = new Map<string, InvestmentAccount>();
 
-        const { data, error } = await supabase
-            .from("investment_accounts")
-            .select("*")
-            .in("account_id", accountIds);
+    const { data, error } = await supabase.from("investment_accounts").select("*").in("account_id", accountIds);
 
-        if (error) {
-            console.error("Error fetching investment accounts:", error.message);
-            return results;
-        }
-
-        // Map the results by account_id for easy lookup
-        for (const investmentAccount of data) {
-            results.set(investmentAccount.account_id, investmentAccount as InvestmentAccount);
-        }
-
-        return results;
-    } catch (error) {
-        console.error("Exception fetching investment accounts:", error);
-        return new Map();
+    if (error) {
+      console.error("Error fetching investment accounts:", error.message);
+      return results;
     }
+
+    // Map the results by account_id for easy lookup
+    for (const investmentAccount of data) {
+      results.set(investmentAccount.account_id, investmentAccount as InvestmentAccount);
+    }
+
+    return results;
+  } catch (error) {
+    console.error("Exception fetching investment accounts:", error);
+    return new Map();
+  }
 };
 
 /**
@@ -47,16 +39,14 @@ const fetchInvestmentAccountsCore = async (
  * @param accountId The account_id of the investment account to fetch
  * @returns The investment account or null if not found
  */
-export const fetchInvestmentAccount = async (
-    accountId: string
-): Promise<InvestmentAccount | null> => {
-    if (!accountId) {
-        console.error("No account ID provided to fetchInvestmentAccount");
-        return null;
-    }
+export const fetchInvestmentAccount = async (accountId: string): Promise<InvestmentAccount | null> => {
+  if (!accountId) {
+    console.error("No account ID provided to fetchInvestmentAccount");
+    return null;
+  }
 
-    const results = await fetchInvestmentAccountsCore([accountId]);
-    return results.get(accountId) || null;
+  const results = await fetchInvestmentAccountsCore([accountId]);
+  return results.get(accountId) || null;
 };
 
 /**
@@ -64,10 +54,8 @@ export const fetchInvestmentAccount = async (
  * @param accountIds Array of account IDs to fetch investment accounts for
  * @returns Map of account IDs to investment accounts
  */
-export const fetchInvestmentAccounts = async (
-    accountIds: string[]
-): Promise<Map<string, InvestmentAccount>> => {
-    return await fetchInvestmentAccountsCore(accountIds);
+export const fetchInvestmentAccounts = async (accountIds: string[]): Promise<Map<string, InvestmentAccount>> => {
+  return await fetchInvestmentAccountsCore(accountIds);
 };
 
 /**
@@ -76,67 +64,62 @@ export const fetchInvestmentAccounts = async (
  * @param investmentAccounts Array of investment account data to insert
  * @returns Array of created investment account IDs or null if creation failed
  */
-const createInvestmentAccountsCore = async (
-    userId: string,
-    investmentAccounts: InvestmentAccountData[]
-): Promise<string[] | null> => {
-    if (!userId || !investmentAccounts.length) {
-        console.error(
-            "Missing user ID or investment accounts for createInvestmentAccountsCore"
-        );
-        return null;
+const createInvestmentAccountsCore = async (userId: string, investmentAccounts: InvestmentAccount[]): Promise<string[] | null> => {
+  if (!userId || !investmentAccounts.length) {
+    console.error("Missing user ID or investment accounts for createInvestmentAccountsCore");
+    return null;
+  }
+
+  try {
+    const supabase = createClient();
+
+    // Create base accounts first
+    const baseAccounts = investmentAccounts.map((investmentAccount) => ({
+      user_id: userId,
+      account_type: AccountType.INVESTMENT, // Assuming these are stock/investment accounts
+      balance: investmentAccount.balance,
+    }));
+    // Create base accounts first
+    const baseAccounts = investmentAccounts.map((investmentAccount) => ({
+      user_id: userId,
+      account_name: investmentAccount.account_name,
+      account_type: AccountType.INVESTMENT, // Assuming these are stock/investment accounts
+      balance: investmentAccount.balance,
+    }));
+
+    const accountsResult = await createAccountsCore(baseAccounts);
+
+    if (!accountsResult) {
+      console.error("Error creating base accounts for investment accounts");
+      return null;
     }
 
-    try {
-        const supabase = createClient();
+    // Now create the investment accounts
+    const investmentAccountsToInsert = accountsResult.map((account: Account, index: number) => ({
+      account_id: account.id,
+      investment_type: investmentAccounts[index].investment_type,
+      institution: investmentAccounts[index].institution,
+      account_number: investmentAccounts[index].account_number,
+      contribution_room: investmentAccounts[index].contribution_room,
+      balance: investmentAccounts[index].balance,
+      currency: investmentAccounts[index].currency,
+    }));
 
-        // Create base accounts first
-        const baseAccounts = investmentAccounts.map((investmentAccount) => ({
-            user_id: userId,
-            account_name: investmentAccount.account_name,
-            account_type: AccountType.INVESTMENT, // Assuming these are stock/investment accounts
-            balance: investmentAccount.balance,
-        }));
+    const { error: investmentError } = await supabase.from("investment_accounts").insert(investmentAccountsToInsert);
 
-        const accountsResult = await createAccountsCore(baseAccounts);
-
-        if (!accountsResult) {
-            console.error("Error creating base accounts for investment accounts");
-            return null;
-        }
-
-        // Now create the investment accounts
-        const investmentAccountsToInsert = accountsResult.map(
-            (account: Account, index: number) => ({
-                account_id: account.id,
-                investment_type: investmentAccounts[index].investment_type,
-                institution: investmentAccounts[index].institution,
-                account_number: investmentAccounts[index].account_number,
-                contribution_room: investmentAccounts[index].contribution_room,
-                balance: investmentAccounts[index].balance,
-                currency: investmentAccounts[index].currency,
-            })
-        );
-
-        const { error: investmentError } = await supabase
-            .from("investment_accounts")
-            .insert(investmentAccountsToInsert);
-
-        if (investmentError) {
-            console.error("Error creating investment accounts:", investmentError.message);
-            // Try to clean up the created accounts
-            const accountIdsToDelete = accountsResult.map(
-                (account: Account) => account.id
-            );
-            await deleteAccountsCore(accountIdsToDelete);
-            return null;
-        }
-
-        return accountsResult.map((account: Account) => account.id);
-    } catch (error) {
-        console.error("Exception creating investment accounts:", error);
-        return null;
+    if (investmentError) {
+      console.error("Error creating investment accounts:", investmentError.message);
+      // Try to clean up the created accounts
+      const accountIdsToDelete = accountsResult.map((account: Account) => account.id);
+      await deleteAccountsCore(accountIdsToDelete);
+      return null;
     }
+
+    return accountsResult.map((account: Account) => account.id);
+  } catch (error) {
+    console.error("Exception creating investment accounts:", error);
+    return null;
+  }
 };
 
 /**
@@ -145,17 +128,14 @@ const createInvestmentAccountsCore = async (
  * @param investmentAccount The investment account data to insert
  * @returns The created investment account ID or null if creation failed
  */
-export const createInvestmentAccount = async (
-    userId: string,
-    investmentAccount: InvestmentAccountData
-): Promise<string | null> => {
-    if (!userId) {
-        console.error("No user ID provided to createInvestmentAccount");
-        return null;
-    }
+export const createInvestmentAccount = async (userId: string, investmentAccount: InvestmentAccount): Promise<string | null> => {
+  if (!userId) {
+    console.error("No user ID provided to createInvestmentAccount");
+    return null;
+  }
 
-    const results = await createInvestmentAccountsCore(userId, [investmentAccount]);
-    return results ? results[0] : null;
+  const results = await createInvestmentAccountsCore(userId, [investmentAccount]);
+  return results ? results[0] : null;
 };
 
 /**
@@ -164,11 +144,8 @@ export const createInvestmentAccount = async (
  * @param investmentAccounts Array of investment account data to insert
  * @returns Array of created investment account IDs or null if creation failed
  */
-export const createInvestmentAccountsBatch = async (
-    userId: string,
-    investmentAccounts: InvestmentAccountData[]
-): Promise<string[] | null> => {
-    return await createInvestmentAccountsCore(userId, investmentAccounts);
+export const createInvestmentAccountsBatch = async (userId: string, investmentAccounts: InvestmentAccount[]): Promise<string[] | null> => {
+  return await createInvestmentAccountsCore(userId, investmentAccounts);
 };
 
 /**
@@ -177,42 +154,36 @@ export const createInvestmentAccountsBatch = async (
  * @param updates The updates to apply
  * @returns Map of account IDs to success/failure status
  */
-const updateInvestmentAccountsCore = async (
-    accountIds: string[],
-    updates: Partial<InvestmentAccount>
-): Promise<Map<string, boolean>> => {
-    if (!accountIds.length) return new Map();
+const updateInvestmentAccountsCore = async (accountIds: string[], updates: Partial<InvestmentAccount>): Promise<Map<string, boolean>> => {
+  if (!accountIds.length) return new Map();
 
-    const results = new Map<string, boolean>();
+  const results = new Map<string, boolean>();
 
-    try {
-        const supabase = createClient();
+  try {
+    const supabase = createClient();
 
-        // Create a copy of updates to avoid modifying the original object
-        const investmentUpdates = { ...updates };
+    // Create a copy of updates to avoid modifying the original object
+    const investmentUpdates = { ...updates };
 
-        // Update all investment accounts in a batch
-        const { error } = await supabase
-            .from("investment_accounts")
-            .update(investmentUpdates)
-            .in("account_id", accountIds);
+    // Update all investment accounts in a batch
+    const { error } = await supabase.from("investment_accounts").update(investmentUpdates).in("account_id", accountIds);
 
-        if (error) {
-            console.error("Error updating investment accounts:", error.message);
-            // Set all as failed
-            accountIds.forEach((id) => results.set(id, false));
-            return results;
-        }
-
-        // Set all as successful
-        accountIds.forEach((id) => results.set(id, true));
-        return results;
-    } catch (error) {
-        console.error("Exception updating investment accounts:", error);
-        // Set all as failed
-        accountIds.forEach((id) => results.set(id, false));
-        return results;
+    if (error) {
+      console.error("Error updating investment accounts:", error.message);
+      // Set all as failed
+      accountIds.forEach((id) => results.set(id, false));
+      return results;
     }
+
+    // Set all as successful
+    accountIds.forEach((id) => results.set(id, true));
+    return results;
+  } catch (error) {
+    console.error("Exception updating investment accounts:", error);
+    // Set all as failed
+    accountIds.forEach((id) => results.set(id, false));
+    return results;
+  }
 };
 
 /**
@@ -221,17 +192,14 @@ const updateInvestmentAccountsCore = async (
  * @param updates The investment account fields to update
  * @returns True if successful, false otherwise
  */
-export const updateInvestmentAccount = async (
-    accountId: string,
-    updates: Partial<InvestmentAccount>
-): Promise<boolean> => {
-    if (!accountId) {
-        console.error("No account ID provided to updateInvestmentAccount");
-        return false;
-    }
+export const updateInvestmentAccount = async (accountId: string, updates: Partial<InvestmentAccount>): Promise<boolean> => {
+  if (!accountId) {
+    console.error("No account ID provided to updateInvestmentAccount");
+    return false;
+  }
 
-    const results = await updateInvestmentAccountsCore([accountId], updates);
-    return results.get(accountId) || false;
+  const results = await updateInvestmentAccountsCore([accountId], updates);
+  return results.get(accountId) || false;
 };
 
 /**
@@ -240,21 +208,16 @@ export const updateInvestmentAccount = async (
  * @param updates The updates to apply to all investment accounts
  * @returns Map of account IDs to success/failure status
  */
-export const updateInvestmentAccountsBatch = async (
-    accountIds: string[],
-    updates: Partial<InvestmentAccount>
-): Promise<Map<string, boolean>> => {
-    return await updateInvestmentAccountsCore(accountIds, updates);
-}; 
+export const updateInvestmentAccountsBatch = async (accountIds: string[], updates: Partial<InvestmentAccount>): Promise<Map<string, boolean>> => {
+  return await updateInvestmentAccountsCore(accountIds, updates);
+};
 
 /**
  * Fetches an investment account with its transactions
  * @param accountId The account_id of the investment account
  * @returns The investment account with transactions or null if not found
  */
-export const fetchInvestmentAccountWithTransactions = async (
-  accountId: string
-): Promise<InvestmentAccount | null> => {
+export const fetchInvestmentAccountWithTransactions = async (accountId: string): Promise<InvestmentAccount | null> => {
   if (!accountId) {
     console.error("No account ID provided to fetchInvestmentAccountWithTransactions");
     return null;
@@ -279,10 +242,7 @@ export const fetchInvestmentAccountWithTransactions = async (
       .single();
 
     if (error) {
-      console.error(
-        "Error fetching investment account with transactions:",
-        error.message
-      );
+      console.error("Error fetching investment account with transactions:", error.message);
       return null;
     }
 
@@ -316,10 +276,7 @@ export const fetchInvestmentAccountWithTransactions = async (
  * @param dateRange Optional date range to filter transactions
  * @returns The investment accounts with their transactions or empty object if none found
  */
-export const fetchInvestmentAccountsWithTransactions = async (
-  user_id: string,
-  dateRange?: { start: Date; end: Date }
-): Promise<Record<string, InvestmentAccountWithTransactions>> => {
+export const fetchInvestmentAccountsWithTransactions = async (user_id: string, dateRange?: { start: Date; end: Date }): Promise<Record<string, InvestmentAccountWithTransactions>> => {
   const supabase = createClient();
 
   if (!user_id) {
@@ -353,30 +310,21 @@ export const fetchInvestmentAccountsWithTransactions = async (
     const accountsWithTransactions = await Promise.all(
       accountsData.map(async (account) => {
         // Start building the query
-        let transactionsQuery = supabase
-          .from("investment_transactions")
-          .select("*")
-          .eq("account_id", account.id);
+        let transactionsQuery = supabase.from("investment_transactions").select("*").eq("account_id", account.id);
 
         // Apply date range filter if provided
         if (dateRange) {
-          transactionsQuery = transactionsQuery
-            .gte("transaction_date", dateRange.start.toISOString())
-            .lte("transaction_date", dateRange.end.toISOString());
+          transactionsQuery = transactionsQuery.gte("transaction_date", dateRange.start.toISOString()).lte("transaction_date", dateRange.end.toISOString());
         }
 
         // Execute the query with ordering
-        const { data: transactionsData, error: transactionsError } = await transactionsQuery
-          .order("transaction_date", { ascending: false });
+        const { data: transactionsData, error: transactionsError } = await transactionsQuery.order("transaction_date", { ascending: false });
 
         const { account_id, ...investmentAccountWithoutId } = account.investment_accounts;
         const { investment_accounts, ...accountWithoutInvestmentAccount } = account;
 
         if (transactionsError) {
-          console.error(
-            `Error fetching transactions for account ${account.id}:`,
-            transactionsError.message
-          );
+          console.error(`Error fetching transactions for account ${account.id}:`, transactionsError.message);
 
           // If there's an error fetching transactions, we'll still return the account
           // but with an empty transactions array
