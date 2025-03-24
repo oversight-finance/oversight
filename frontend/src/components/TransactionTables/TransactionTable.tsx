@@ -16,8 +16,10 @@ interface TransactionTableProps<T extends TransactionBase> {
   onDelete?: (transactionId: string) => void;
   onEdit?: (original: T, updated: Partial<T>) => void;
   onTransactionAdd?: (transactions: T[]) => void;
+  onMultiDelete?: (transactions: T[]) => void;
   accountType?: string; // Type of account: 'bank', 'investment', 'credit', etc.
   title?: string; // Optional custom title for the card
+  isSubmitting?: boolean; // Loading state for operations
   // Custom column renderers and configurations
   columnConfig?: Partial<
     Record<
@@ -42,9 +44,11 @@ export default function TransactionTable<T extends TransactionBase>({
   onDelete,
   onEdit,
   onTransactionAdd,
+  onMultiDelete,
   title = "Transactions",
   columnConfig = {},
   excludeFields = [],
+  isSubmitting = false,
 }: TransactionTableProps<T>) {
   // Generate columns dynamically based on T
   const generateColumns = React.useCallback((): ColumnDef<T>[] => {
@@ -227,6 +231,10 @@ export default function TransactionTable<T extends TransactionBase>({
             : undefined
         }
         onDelete={onDelete ? (row) => handleDelete(row as T) : undefined}
+        onMultiDelete={
+          onMultiDelete ? (rows) => onMultiDelete(rows as T[]) : undefined
+        }
+        isSubmitting={isSubmitting}
       />
     </div>
   );

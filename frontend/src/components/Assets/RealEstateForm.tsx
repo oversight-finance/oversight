@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAssets } from "@/contexts/AssetsContext";
-import { useAccounts } from "@/contexts/AccountsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { RealEstate } from "@/types/RealEstate";
@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { formatTotalAmount } from "@/lib/utils";
+import { DialogClose } from "@/components/ui/dialog";
 
-type FinancingType = "cash" | "mortgage" | "heloc";
 type PropertyType =
   | "single_family"
   | "multi_family"
@@ -23,109 +23,23 @@ type PropertyType =
   | "commercial"
   | "land";
 
-// Calculate appreciated value based on purchase price, date, and appreciation rate
-const calculateCurrentValue = (
-  purchasePrice: number,
-  purchaseDate: string,
-  appreciationRate: number
-): number => {
-  if (!purchasePrice || !purchaseDate) return 0;
-
-  const purchaseDateTime = new Date(purchaseDate).getTime();
-  const currentDateTime = new Date().getTime();
-
-  // Calculate years elapsed (including partial years)
-  const millisecondsPerYear = 1000 * 60 * 60 * 24 * 365.25;
-  const yearsElapsed =
-    (currentDateTime - purchaseDateTime) / millisecondsPerYear;
-
-  // If the purchase date is in the future, return the purchase price
-  if (yearsElapsed < 0) return purchasePrice;
-
-  // Calculate appreciated value using compound appreciation
-  const currentValue =
-    purchasePrice * Math.pow(1 + appreciationRate / 100, yearsElapsed);
-
-  // Round to 2 decimal places
-  return Math.round(currentValue * 100) / 100;
-};
-
-// Calculate financing progress including principal paid, interest paid, and remaining balance
-const calculateFinancingProgress = (
-  purchaseDate: string,
-  monthlyPayment: number,
-  interestRate: number,
-  loanTerm: number,
-  purchaseValue: number
-): {
-  monthsPaid: number;
-  totalPaid: number;
-  principalPaid: number;
-  interestPaid: number;
-  remainingBalance: number;
-} => {
-  if (
-    !purchaseDate ||
-    !monthlyPayment ||
-    !interestRate ||
-    !loanTerm ||
-    !purchaseValue
-  ) {
-    return {
-      monthsPaid: 0,
-      totalPaid: 0,
-      principalPaid: 0,
-      interestPaid: 0,
-      remainingBalance: purchaseValue,
-    };
-  }
-
-  const monthlyInterestRate = interestRate / 100 / 12;
-  const purchaseDateTime = new Date(purchaseDate).getTime();
-  const currentDateTime = new Date().getTime();
-  const monthsPaid = Math.min(
-    Math.floor(
-      (currentDateTime - purchaseDateTime) / (1000 * 60 * 60 * 24 * 30.44)
-    ),
-    loanTerm
-  );
-
-  let remainingBalance = purchaseValue;
-  let totalInterestPaid = 0;
-  let totalPrincipalPaid = 0;
-
-  // Calculate amortization for each month that has passed
-  for (let month = 0; month < monthsPaid; month++) {
-    const interestPayment = remainingBalance * monthlyInterestRate;
-    const principalPayment = Math.min(
-      monthlyPayment - interestPayment,
-      remainingBalance
-    );
-
-    totalInterestPaid += interestPayment;
-    totalPrincipalPaid += principalPayment;
-    remainingBalance -= principalPayment;
-  }
-
-  return {
-    monthsPaid,
-    totalPaid: monthsPaid * monthlyPayment,
-    principalPaid: totalPrincipalPaid,
-    interestPaid: totalInterestPaid,
-    remainingBalance,
-  };
-};
-
 // Create an address formatter helper
-const formatFullAddress = (address: string, city: string, state: string, zipCode: string, country: string): string => {
+const formatFullAddress = (
+  address: string,
+  city: string,
+  state: string,
+  zipCode: string,
+  country: string
+): string => {
   return `${address}, ${city}, ${state} ${zipCode}, ${country}`;
 };
 
 export default function RealEstateForm() {
   const { addAsset } = useAssets();
-  const { getCurrentUserId } = useAccounts();
+  const { getUserId } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const dialogCloseRef = useRef<HTMLButtonElement>(null);
 
   // Address components for the form
   const [addressComponents, setAddressComponents] = useState({
@@ -135,17 +49,23 @@ export default function RealEstateForm() {
     zipCode: "",
     country: "USA",
   });
-  
-  // Initial form data with necessary RealEstate fields
-  const [formData, setFormData] = useState<Partial<RealEstate> & { user_id: string }>({
+
+  // Form data matching the RealEstate interface
+  const [formData, setFormData] = useState<
+    Omit<RealEstate, "id" | "created_at" | "updated_at">
+  >({
     user_id: "", // Will be set when submitting
-    property_type: "single_family" as PropertyType,
+    property_type: "single_family",
     address: "",
     purchase_price: 0,
-    current_value: 0,
     purchase_date: new Date().toISOString().split("T")[0], // Today's date in YYYY-MM-DD format
     mortgage_balance: 0,
+    mortgage_interest_rate: 0,
+    mortgage_term_years: 30,
+    property_tax_annual: 0,
     currency: "USD",
+    annual_growth_rate: 3, // Default 3% annual appreciation
+    current_value: 0,
   });
 
   // Update the address whenever address components change
@@ -157,47 +77,53 @@ export default function RealEstateForm() {
       addressComponents.zipCode,
       addressComponents.country
     );
-    
-    setFormData(prev => ({
-      ...prev,
-      address: fullAddress
-    }));
-  }, [addressComponents]);
-
-  // Additional form fields not part of RealEstate type
-  const [additionalData, setAdditionalData] = useState({
-    square_feet: 0,
-    bedrooms: 0,
-    bathrooms: 0,
-    year_built: 0,
-    lot_size: 0, // in acres
-    property_tax: 0, // annual
-    insurance_cost: 0, // annual
-    maintenance_cost: 0, // annual
-    rental_income: 0, // monthly
-    financing_type: "cash" as FinancingType,
-    interest_rate: 0,
-    monthly_payment: 0,
-    loan_term: 0, // in months
-    appreciation_rate: 3, // default 3% annual appreciation
-  });
-
-  // Calculate current value whenever relevant fields change
-  useEffect(() => {
-    const currentValue = calculateCurrentValue(
-      formData.purchase_price || 0,
-      formData.purchase_date || "",
-      additionalData.appreciation_rate
-    );
 
     setFormData((prev) => ({
       ...prev,
-      current_value: currentValue,
+      address: fullAddress,
+    }));
+  }, [addressComponents]);
+
+  // Calculate current value based on purchase price, date, and appreciation rate
+  useEffect(() => {
+    if (
+      !formData.purchase_price ||
+      !formData.purchase_date ||
+      !formData.annual_growth_rate
+    )
+      return;
+
+    const purchaseDateTime = new Date(formData.purchase_date).getTime();
+    const currentDateTime = new Date().getTime();
+
+    // Calculate years elapsed (including partial years)
+    const millisecondsPerYear = 1000 * 60 * 60 * 24 * 365.25;
+    const yearsElapsed =
+      (currentDateTime - purchaseDateTime) / millisecondsPerYear;
+
+    // If the purchase date is in the future, return the purchase price
+    if (yearsElapsed < 0) {
+      setFormData((prev) => ({
+        ...prev,
+        current_value: formData.purchase_price,
+      }));
+      return;
+    }
+
+    // Calculate appreciated value using compound appreciation
+    const currentValue =
+      formData.purchase_price *
+      Math.pow(1 + (formData.annual_growth_rate || 0) / 100, yearsElapsed);
+
+    // Round to 2 decimal places
+    setFormData((prev) => ({
+      ...prev,
+      current_value: Math.round(currentValue * 100) / 100,
     }));
   }, [
     formData.purchase_price,
     formData.purchase_date,
-    additionalData.appreciation_rate,
+    formData.annual_growth_rate,
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -206,49 +132,52 @@ export default function RealEstateForm() {
 
     try {
       // Get current user ID
-      const userId = await getCurrentUserId();
+      const userId = getUserId();
       if (!userId) {
         console.error("Unable to get current user ID");
         return;
       }
 
-      // Create a complete RealEstate object with required fields
-      const realEstate: RealEstate = {
-        id: "", // The backend will generate this
-        user_id: userId, // Use the actual user ID
-        property_type: formData.property_type || "single_family",
-        address: formData.address || "",
-        purchase_price: formData.purchase_price || 0,
-        current_value: formData.current_value || 0,
-        purchase_date: formData.purchase_date || new Date().toISOString().split("T")[0],
-        mortgage_balance: formData.mortgage_balance || 0,
-        currency: formData.currency || "USD",
+      // Create the real estate data object
+      const realEstateData: RealEstate = {
+        id: "", // Will be set by the backend
+        user_id: userId,
+        property_type: formData.property_type,
+        address: formData.address,
+        purchase_price: formData.purchase_price,
+        purchase_date: formData.purchase_date,
+        mortgage_balance: formData.mortgage_balance,
+        mortgage_interest_rate: formData.mortgage_interest_rate,
+        mortgage_term_years: formData.mortgage_term_years,
+        property_tax_annual: formData.property_tax_annual,
+        currency: formData.currency,
+        annual_growth_rate: formData.annual_growth_rate,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
-      // Add the property as an asset and get the new asset ID
-      const newAssetId = await addAsset(realEstate);
+      // Use the addAsset function from context
+      const newAssetId = await addAsset(realEstateData);
 
       if (newAssetId) {
-        // Find and close the dialog using the DialogClose component
-        const closeButton = document.querySelector(
-          "[data-dialog-close]"
-        ) as HTMLButtonElement;
-        if (closeButton) {
-          closeButton.click();
+        // Close the dialog programmatically
+        if (dialogCloseRef.current) {
+          dialogCloseRef.current.click();
         }
 
         // Reset form
         setFormData({
           user_id: "",
-          property_type: "single_family" as PropertyType,
+          property_type: "single_family",
           address: "",
           purchase_price: 0,
-          current_value: 0,
           purchase_date: new Date().toISOString().split("T")[0],
           mortgage_balance: 0,
+          mortgage_interest_rate: 0,
+          mortgage_term_years: 30,
+          property_tax_annual: 0,
           currency: "USD",
+          annual_growth_rate: 3,
         });
 
         setAddressComponents({
@@ -259,25 +188,8 @@ export default function RealEstateForm() {
           country: "USA",
         });
 
-        setAdditionalData({
-          square_feet: 0,
-          bedrooms: 0,
-          bathrooms: 0,
-          year_built: 0,
-          lot_size: 0,
-          property_tax: 0,
-          insurance_cost: 0,
-          maintenance_cost: 0,
-          rental_income: 0,
-          financing_type: "cash" as FinancingType,
-          interest_rate: 0,
-          monthly_payment: 0,
-          loan_term: 0,
-          appreciation_rate: 3,
-        });
-
         // Redirect to the new property's details page
-        router.push(`/real-estate/${newAssetId}`);
+        router.push(`/assets/${newAssetId}`);
       } else {
         console.error("Failed to add real estate property");
       }
@@ -296,6 +208,9 @@ export default function RealEstateForm() {
           onSubmit={handleSubmit}
           className="space-y-6 py-2"
         >
+          {/* Hidden DialogClose component that we can click programmatically */}
+          <DialogClose ref={dialogCloseRef} className="hidden" />
+
           <div className="space-y-2">
             <label htmlFor="property_type" className="text-sm font-medium">
               Property Type
@@ -313,7 +228,9 @@ export default function RealEstateForm() {
                 <SelectValue placeholder="Select Property Type" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="single_family">Single Family Home</SelectItem>
+                <SelectItem value="single_family">
+                  Single Family Home
+                </SelectItem>
                 <SelectItem value="multi_family">Multi-Family</SelectItem>
                 <SelectItem value="condo">Condominium</SelectItem>
                 <SelectItem value="townhouse">Townhouse</SelectItem>
@@ -487,20 +404,94 @@ export default function RealEstateForm() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="appreciation_rate" className="text-sm font-medium">
-              Appreciation Rate (% per year)
+            <label
+              htmlFor="mortgage_interest_rate"
+              className="text-sm font-medium"
+            >
+              Mortgage Interest Rate (%)
             </label>
             <Input
-              id="appreciation_rate"
+              id="mortgage_interest_rate"
+              type="number"
+              min="0"
+              max="20"
+              step="0.01"
+              value={formData.mortgage_interest_rate || ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  mortgage_interest_rate: parseFloat(e.target.value) || 0,
+                })
+              }
+              placeholder="4.5"
+              className="w-full"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="mortgage_term_years"
+              className="text-sm font-medium"
+            >
+              Mortgage Term (Years)
+            </label>
+            <Input
+              id="mortgage_term_years"
+              type="number"
+              min="1"
+              max="40"
+              step="1"
+              value={formData.mortgage_term_years || ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  mortgage_term_years: parseInt(e.target.value) || 0,
+                })
+              }
+              placeholder="30"
+              className="w-full"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="property_tax_annual"
+              className="text-sm font-medium"
+            >
+              Annual Property Tax
+            </label>
+            <Input
+              id="property_tax_annual"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.property_tax_annual || ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  property_tax_annual: parseFloat(e.target.value) || 0,
+                })
+              }
+              placeholder="3000"
+              className="w-full"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label htmlFor="annual_growth_rate" className="text-sm font-medium">
+              Annual Growth Rate (%)
+            </label>
+            <Input
+              id="annual_growth_rate"
               type="number"
               min="0"
               max="20"
               step="0.1"
-              value={additionalData.appreciation_rate}
+              value={formData.annual_growth_rate || ""}
               onChange={(e) =>
-                setAdditionalData({
-                  ...additionalData,
-                  appreciation_rate: parseFloat(e.target.value) || 3,
+                setFormData({
+                  ...formData,
+                  annual_growth_rate: parseFloat(e.target.value) || 3,
                 })
               }
               className="w-full"
@@ -521,7 +512,7 @@ export default function RealEstateForm() {
               className="w-full bg-muted"
             />
             <p className="text-xs text-muted-foreground">
-              Calculated based on purchase price, date, and appreciation rate
+              Calculated based on purchase price, date, and growth rate
             </p>
           </div>
 

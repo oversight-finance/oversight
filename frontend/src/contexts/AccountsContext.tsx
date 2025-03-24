@@ -100,11 +100,6 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
               transactions = await fetchBankTxs(account.id);
               break;
             case AccountType.INVESTMENT:
-            case AccountType.STOCK:
-              // TODO: Implement fetchInvestmentTxs
-              // transactions = await fetchInvestmentTxs(account.id);
-              console.warn("Investment transactions not yet implemented");
-              break;
             case AccountType.CRYPTO:
               // TODO: Implement fetchCryptoTxs
               // transactions = await fetchCryptoTxs(account.id);
@@ -154,12 +149,6 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
           return await fetchBankTxs(accountId);
 
         case AccountType.INVESTMENT:
-        case AccountType.STOCK:
-          // TODO: Implement fetchInvestmentTxs
-          // return await fetchInvestmentTxs(accountId);
-          console.warn("Investment transactions not yet implemented");
-          return [];
-
         case AccountType.CRYPTO:
           // TODO: Implement fetchCryptoTxs
           // return await fetchCryptoTxs(accountId);

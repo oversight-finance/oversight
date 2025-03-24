@@ -182,9 +182,24 @@ export default function AddBankTransaction({
 
       console.log("Calculated adjusted amount:", adjustedAmount);
 
+      // Ensure date is properly formatted as ISO string for the database
+      // This prevents browser timezone issues by setting the time to noon UTC
+      const dateParts = values.date.split("-");
+      const formattedDate = new Date(
+        Number(dateParts[0]),
+        Number(dateParts[1]) - 1, // Month is 0-indexed in JavaScript
+        Number(dateParts[2]),
+        12, // Set to noon UTC to avoid timezone issues
+        0,
+        0
+      ).toISOString();
+
+      console.log("Original date from form:", values.date);
+      console.log("Formatted date for API:", formattedDate);
+
       const baseTransactionData = {
         account_id: accountId as string,
-        transaction_date: values.date,
+        transaction_date: formattedDate,
         amount: adjustedAmount,
         merchant: values.merchant,
         category: values.category,
@@ -231,7 +246,7 @@ export default function AddBankTransaction({
         merchant: "",
         amount: "",
         category: "",
-        date: format(new Date(), "yyyy-MM-dd"),
+        date: new Date().toISOString(),
         isRecurring: false,
       });
     } catch (error) {

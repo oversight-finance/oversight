@@ -55,9 +55,6 @@ const accountTypeIcons: Record<AccountType, React.ReactNode> = {
   [AccountType.CRYPTO]: <Coins className="h-4 w-4" />,
   [AccountType.CREDIT]: <CircleDollarSign className="h-4 w-4" />,
   [AccountType.SAVINGS]: <Building2 className="h-4 w-4" />,
-  [AccountType.STOCK]: <CircleDollarSign className="h-4 w-4" />,
-  [AccountType.REAL_ESTATE]: <Home className="h-4 w-4" />,
-  [AccountType.VEHICLE]: <Car className="h-4 w-4" />,
 };
 
 const assetTypeLabels = {
@@ -89,6 +86,26 @@ type DialogState = {
 interface EnhancedAccount extends Account {
   bankDetails?: BankAccount;
 }
+
+// Helper function to extract street address from full address
+const extractStreetAddress = (fullAddress: string): string => {
+  if (!fullAddress) return "No Address";
+
+  // Split by commas and take the first part (street address)
+  const parts = fullAddress.split(",");
+  return parts[0].trim();
+};
+
+// Helper function to format property type for display
+const formatPropertyType = (propertyType: string): string => {
+  if (!propertyType) return "Property";
+
+  // Convert snake_case to Title Case
+  return propertyType
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
 
 export function AssetsSidebar() {
   const { assets } = useAssets();
@@ -259,7 +276,9 @@ export function AssetsSidebar() {
                   {groupedAccounts[AccountType.BANK].map((account) => (
                     <SidebarMenuSubButton
                       key={account.id}
-                      onClick={() => router.push(`/accounts/${account.id}`)}
+                      onClick={() =>
+                        router.push(`/accounts/bank/${account.id}`)
+                      }
                       className="py-2 h-auto"
                     >
                       <div className="flex flex-col items-start gap-1 w-full">
@@ -316,7 +335,7 @@ export function AssetsSidebar() {
                   {vehicles.map((vehicle) => (
                     <SidebarMenuSubButton
                       key={vehicle.id}
-                      onClick={() => router.push(`/vehicles/${vehicle.id}`)}
+                      onClick={() => router.push(`/assets/${vehicle.id}`)}
                       className="py-2 h-auto"
                     >
                       <div className="flex flex-col items-start gap-1 w-full">
@@ -372,15 +391,16 @@ export function AssetsSidebar() {
                   {realEstate.map((property) => (
                     <SidebarMenuSubButton
                       key={property.id}
-                      onClick={() => router.push(`/real-estate/${property.id}`)}
+                      onClick={() => router.push(`/assets/${property.id}`)}
                       className="py-2 h-auto"
                     >
                       <div className="flex flex-col items-start gap-1 w-full">
                         <span className="leading-none">
-                          {property.property_type}: {property.address}
+                          {formatPropertyType(property.property_type)}:{" "}
+                          {extractStreetAddress(property.address)}
                         </span>
                         <span className="text-xs text-muted-foreground leading-none">
-                          {formatTotalAmount(property.current_value)}
+                          {formatTotalAmount(property.current_value || 0)}
                         </span>
                       </div>
                     </SidebarMenuSubButton>

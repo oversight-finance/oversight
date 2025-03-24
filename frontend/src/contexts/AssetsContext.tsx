@@ -31,30 +31,35 @@ const isRealEstate = (asset: Asset): asset is RealEstate => {
   return "property_type" in asset && "address" in asset;
 };
 
-// Calculate current value based on purchase price, date, and rate (appreciation or depreciation)
+// Calculate current value based on purchase price, date, and annual growth rate
+// This uses a month-by-month calculation with the monthly rate
 const calculateCurrentValue = (
   purchasePrice: number,
   purchaseDate: string,
-  rate: number,
-  isDepreciation: boolean = false
+  annualGrowthRate: number
 ): number => {
   if (!purchasePrice || !purchaseDate) return purchasePrice;
 
-  const purchaseDateTime = new Date(purchaseDate).getTime();
-  const currentDateTime = new Date().getTime();
+  // Convert annual growth rate to monthly rate
+  const monthlyRate = annualGrowthRate / 12 / 100;
 
-  // Calculate years elapsed (including partial years)
-  const millisecondsPerYear = 1000 * 60 * 60 * 24 * 365.25;
-  const yearsElapsed =
-    (currentDateTime - purchaseDateTime) / millisecondsPerYear;
+  // Get start and end dates
+  const startDate = new Date(purchaseDate);
+  const currentDate = new Date();
 
-  // If the purchase date is in the future, return the purchase price
-  if (yearsElapsed < 0) return purchasePrice;
+  // If purchase date is in the future, return the purchase price
+  if (startDate > currentDate) return purchasePrice;
 
-  // Calculate current value using compound formula
-  // For depreciation, we use (1 - rate/100), for appreciation we use (1 + rate/100)
-  const factor = isDepreciation ? 1 - rate / 100 : 1 + rate / 100;
-  const currentValue = purchasePrice * Math.pow(factor, yearsElapsed);
+  // Calculate total months between purchase date and now
+  const totalMonths =
+    (currentDate.getFullYear() - startDate.getFullYear()) * 12 +
+    (currentDate.getMonth() - startDate.getMonth());
+
+  // Apply compound growth/depreciation month by month
+  let currentValue = purchasePrice;
+  for (let i = 0; i < totalMonths; i++) {
+    currentValue = currentValue * (1 + monthlyRate);
+  }
 
   // Round to 2 decimal places
   return Math.round(currentValue * 100) / 100;
@@ -79,8 +84,9 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const { getUserId } = useAuth(); // Get the getUserId method from AuthContext
-  const userId = getUserId();
-  // Fetch assets on mount
+  const userId = getUserId(); // Store userId as a variable
+
+  // Fetch assets on mount and when userId changes
   useEffect(() => {
     refreshAssets();
   }, [userId]);
@@ -100,14 +106,50 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
         fetchUserRealEstate(userId),
       ]);
 
-      // If there are no assets in the database, add the default ones
-      if (vehicles.length === 0 && realEstateProperties.length === 0) {
-        // setAssets([defaultVehicle, defaultRealEstate]);
-      } else {
-        // Combine all assets
-        const allAssets: Asset[] = [...vehicles, ...realEstateProperties];
-        setAssets(allAssets);
-      }
+      // Calculate current values for all assets
+      const vehiclesWithCurrentValue = vehicles.map((vehicle) => {
+        // Use annual_growth_rate or default to -15% for vehicles (depreciation)
+        const growthRate =
+          vehicle.annual_growth_rate !== undefined
+            ? vehicle.annual_growth_rate
+            : -15;
+
+        return {
+          ...vehicle,
+          current_value: calculateCurrentValue(
+            vehicle.purchase_price || 0,
+            vehicle.purchase_date || new Date().toISOString(),
+            growthRate
+          ),
+        };
+      });
+
+      const realEstateWithCurrentValue = realEstateProperties.map(
+        (property) => {
+          // Use annual_growth_rate or default to 3% for real estate (appreciation)
+          const growthRate =
+            property.annual_growth_rate !== undefined
+              ? property.annual_growth_rate
+              : 3;
+
+          return {
+            ...property,
+            current_value: calculateCurrentValue(
+              property.purchase_price || 0,
+              property.purchase_date || new Date().toISOString(),
+              growthRate
+            ),
+          };
+        }
+      );
+
+      // Combine all assets
+      const allAssets: Asset[] = [
+        ...vehiclesWithCurrentValue,
+        ...realEstateWithCurrentValue,
+      ];
+
+      setAssets(allAssets);
     } catch (error) {
       console.error("Error refreshing assets:", error);
     } finally {

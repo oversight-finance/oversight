@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAssets } from "@/contexts/AssetsContext";
-import { useAccounts } from "@/contexts/AccountsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Vehicle, CarPaymentMethod } from "@/types/Vehicle";
@@ -13,12 +13,13 @@ import {
 } from "@/components/ui/select";
 import { useRouter } from "next/navigation";
 import { formatTotalAmount } from "@/lib/utils";
+import { DialogClose } from "@/components/ui/dialog";
 
-// Calculate depreciated value based on purchase price, date, and depreciation rate
+// Calculate value based on purchase price, date, and annual growth rate (negative for depreciation)
 const calculateCurrentValue = (
   purchasePrice: number,
   purchaseDate: string,
-  depreciationRate: number
+  annualGrowthRate: number
 ): number => {
   if (!purchasePrice || !purchaseDate) return 0;
 
@@ -33,9 +34,10 @@ const calculateCurrentValue = (
   // If the purchase date is in the future, return the purchase price
   if (yearsElapsed < 0) return purchasePrice;
 
-  // Calculate depreciated value using compound depreciation
+  // Calculate current value using compound growth/depreciation
+  // For vehicles, growth rate is typically negative (depreciation)
   const currentValue =
-    purchasePrice * Math.pow(1 - depreciationRate / 100, yearsElapsed);
+    purchasePrice * Math.pow(1 + annualGrowthRate / 100, yearsElapsed);
 
   // Round to 2 decimal places
   return Math.round(currentValue * 100) / 100;
@@ -109,9 +111,10 @@ const calculateFinancingProgress = (
 
 export default function VehicleForm() {
   const { addAsset } = useAssets();
-  const { getCurrentUserId } = useAccounts();
+  const { getUserId } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const dialogCloseRef = useRef<HTMLButtonElement>(null);
 
   // Initial form data with necessary Vehicle fields
   const [formData, setFormData] = useState<
@@ -130,26 +133,25 @@ export default function VehicleForm() {
     loan_amount: 0,
     interest_rate: 0,
     loan_term_months: 0,
-    monthly_payment: 0,
     lease_term_months: 0,
   });
 
-  // Just keep depreciationRate for calculation
-  const [depreciationRate, setDepreciationRate] = useState(15); // default 15% annual depreciation
+  // Just keep annual_growth_rate for calculation (negative for depreciation)
+  const [annual_growth_rate, setAnnualGrowthRate] = useState(-15); // default -15% annual depreciation
 
   // Calculate current value whenever relevant fields change
   useEffect(() => {
     const currentValue = calculateCurrentValue(
-      formData.purchase_price || 0, // Add default value of 0
+      formData.purchase_price || 0,
       formData.purchase_date || "",
-      depreciationRate
+      annual_growth_rate
     );
 
     setFormData((prev) => ({
       ...prev,
       current_value: currentValue,
     }));
-  }, [formData.purchase_price, formData.purchase_date, depreciationRate]);
+  }, [formData.purchase_price, formData.purchase_date, annual_growth_rate]);
 
   // Calculate loan end date based on start date and term
   useEffect(() => {
@@ -179,7 +181,7 @@ export default function VehicleForm() {
 
     try {
       // Get current user ID
-      const userId = await getCurrentUserId();
+      const userId = getUserId();
       if (!userId) {
         console.error("Unable to get current user ID");
         return;
@@ -193,7 +195,6 @@ export default function VehicleForm() {
         model: formData.model || "",
         year: formData.year || new Date().getFullYear(),
         purchase_price: formData.purchase_price || 0,
-        current_value: formData.current_value || 0,
         purchase_date:
           formData.purchase_date || new Date().toISOString().split("T")[0],
         vin: formData.vin || "",
@@ -201,6 +202,7 @@ export default function VehicleForm() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         payment_method: formData.payment_method,
+        annual_growth_rate: annual_growth_rate, // Add annual growth rate to vehicle data
       };
 
       // Add financing details if not cash purchase
@@ -208,7 +210,6 @@ export default function VehicleForm() {
         vehicle.loan_amount = formData.loan_amount;
         vehicle.loan_start_date = formData.purchase_date; // Default to purchase date
         vehicle.interest_rate = formData.interest_rate;
-        vehicle.monthly_payment = formData.monthly_payment;
 
         if (formData.payment_method === CarPaymentMethod.FINANCE) {
           vehicle.loan_term_months = formData.loan_term_months;
@@ -217,17 +218,14 @@ export default function VehicleForm() {
           vehicle.lease_term_months = formData.lease_term_months;
         }
       }
-
+      console.log("VEHICLE", vehicle);
       // Add the vehicle to assets context
       const newAssetId = await addAsset(vehicle);
 
       if (newAssetId) {
-        // Find and close the dialog using the DialogClose component
-        const closeButton = document.querySelector(
-          "[data-dialog-close]"
-        ) as HTMLButtonElement;
-        if (closeButton) {
-          closeButton.click();
+        // Close the dialog programmatically
+        if (dialogCloseRef.current) {
+          dialogCloseRef.current.click();
         }
 
         // Reset form
@@ -245,14 +243,13 @@ export default function VehicleForm() {
           loan_amount: 0,
           interest_rate: 0,
           loan_term_months: 0,
-          monthly_payment: 0,
           lease_term_months: 0,
         });
 
-        setDepreciationRate(15);
+        setAnnualGrowthRate(-15);
 
-        // Redirect to the new vehicle's details page
-        router.push(`/vehicles/${newAssetId}`);
+        // Redirect to the asset details page
+        router.push(`/assets/${newAssetId}`);
       } else {
         console.error("Failed to add vehicle");
       }
@@ -271,6 +268,9 @@ export default function VehicleForm() {
           onSubmit={handleSubmit}
           className="space-y-6 py-2"
         >
+          {/* Hidden DialogClose component that we can click programmatically */}
+          <DialogClose ref={dialogCloseRef} className="hidden" />
+
           <div className="space-y-2">
             <label htmlFor="make" className="text-sm font-medium">
               Make
@@ -471,30 +471,6 @@ export default function VehicleForm() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <label
-                  htmlFor="monthly_payment"
-                  className="text-sm font-medium"
-                >
-                  Monthly Payment
-                </label>
-                <Input
-                  id="monthly_payment"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.monthly_payment || ""}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      monthly_payment: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  placeholder="450"
-                  className="w-full"
-                />
-              </div>
-
               {formData.payment_method === CarPaymentMethod.FINANCE && (
                 <div className="space-y-2">
                   <label
@@ -594,23 +570,24 @@ export default function VehicleForm() {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="depreciationRate" className="text-sm font-medium">
-              Depreciation Rate (% per year)
+            <label htmlFor="annual_growth_rate" className="text-sm font-medium">
+              Annual Growth Rate (%)
             </label>
             <Input
-              id="depreciationRate"
+              id="annual_growth_rate"
               type="number"
-              min="0"
-              max="50"
+              min="-50"
+              max="20"
               step="0.1"
-              value={depreciationRate}
+              value={annual_growth_rate}
               onChange={(e) =>
-                setDepreciationRate(parseFloat(e.target.value) || 15)
+                setAnnualGrowthRate(parseFloat(e.target.value) || -15)
               }
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">
-              Average vehicle depreciation is around 15-20% per year
+              For vehicles, this is typically negative (-15% to -20% per year).
+              Use positive values for appreciating assets.
             </p>
           </div>
 
@@ -625,7 +602,7 @@ export default function VehicleForm() {
               className="w-full bg-muted"
             />
             <p className="text-xs text-muted-foreground">
-              Calculated based on purchase price, date, and depreciation rate
+              Calculated based on purchase price, date, and annual growth rate
             </p>
           </div>
 
@@ -656,7 +633,7 @@ export default function VehicleForm() {
           </div>
 
           <div className="flex justify-end pt-4">
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
+            <Button type="submit" className="w-full">
               {isSubmitting ? "Adding..." : "Add Vehicle"}
             </Button>
           </div>

@@ -280,3 +280,14 @@ export const deleteCryptoWalletTransaction = async (
   const results = await deleteCryptoWalletTransactionsCore([transactionId]);
   return results.get(transactionId) || false;
 };
+
+/**
+ * Deletes multiple crypto wallet transactions
+ * @param transactionIds Array of transaction IDs to delete
+ * @returns Map of transaction IDs to success/failure status
+ */
+export const deleteCryptoWalletTransactionBatch = async (
+  transactionIds: string[]
+): Promise<Map<string, boolean>> => {
+  return await deleteCryptoWalletTransactionsCore(transactionIds);
+};

@@ -1,12 +1,18 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { createBankAccount } from "@/database/BankAccounts";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BankAccountType, AccountType } from "@/types/Account";
 import { useAccounts } from "@/contexts/AccountsContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
+import { DialogClose } from "@/components/ui/dialog";
 
 export default function BankForm() {
-  const { getCurrentUserId } = useAccounts();
+  const { refreshAccounts } = useAccounts();
+  const { getUserId } = useAuth();
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     account_name: "",
     institution_name: "",
@@ -16,13 +22,22 @@ export default function BankForm() {
     balance: 0,
     account_type: BankAccountType.CHECKING,
   });
+  // Reference to DialogClose button
+  const dialogCloseRef = useRef<HTMLButtonElement>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const userId = await getCurrentUserId();
+    setIsSubmitting(true);
 
-    if (userId) {
-      createBankAccount(userId, {
+    try {
+      const userId = getUserId();
+      if (!userId) {
+        console.error("Unable to get current user ID");
+        return;
+      }
+
+      // Create the bank account and get the new account ID
+      const newAccountId = await createBankAccount(userId, {
         account_name: formData.account_name,
         institution_name: formData.institution_name,
         account_number: formData.account_number,
@@ -31,30 +46,40 @@ export default function BankForm() {
         balance: formData.balance,
         account_type: AccountType.BANK,
       });
-    }
 
-    // Find and close the dialog using the DialogClose component
-    const closeButton = document.querySelector(
-      "[data-dialog-close]"
-    ) as HTMLButtonElement;
-    if (closeButton) {
-      closeButton.click();
-    }
+      // Reset form
+      setFormData({
+        account_name: "",
+        institution_name: "",
+        account_number: "",
+        routing_number: "",
+        currency: "USD",
+        balance: 0,
+        account_type: BankAccountType.CHECKING,
+      });
 
-    // Reset form
-    setFormData({
-      account_name: "",
-      institution_name: "",
-      account_number: "",
-      routing_number: "",
-      currency: "USD",
-      balance: 0,
-      account_type: BankAccountType.CHECKING,
-    });
+      // Close the dialog programmatically
+      if (dialogCloseRef.current) {
+        dialogCloseRef.current.click();
+      }
+
+      // Redirect to the new account page if we have an ID
+      if (newAccountId) {
+        refreshAccounts();
+        router.push(`/accounts/${newAccountId}`);
+      }
+    } catch (error) {
+      console.error("Error creating bank account:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Hidden DialogClose component that we can click programmatically */}
+      <DialogClose ref={dialogCloseRef} className="hidden" />
+
       <div className="space-y-2">
         <label htmlFor="account_name">Account Name</label>
         <Input
@@ -136,7 +161,7 @@ export default function BankForm() {
         />
       </div>
 
-      <Button type="submit" className="w-full">
+      <Button type="submit" className="w-full" disabled={isSubmitting}>
         Create Bank Account
       </Button>
     </form>

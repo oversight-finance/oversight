@@ -29,7 +29,7 @@ import { DataTablePagination } from "./data-table-pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2, MoreHorizontal, Plus } from "lucide-react";
+import { Pencil, Trash2, MoreHorizontal, Plus, Loader2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,18 +54,22 @@ interface DataTableProps<TData extends Record<string, any>, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   title?: string;
+  isSubmitting?: boolean;
   onEdit?: (row: TData, updatedRow: Partial<TData>) => void;
   onDelete?: (row: TData) => void;
   onAdd?: (row: TData) => void;
+  onMultiDelete?: (rows: TData[]) => void;
 }
 
 export function DataTable<TData extends Record<string, any>, TValue>({
   columns,
   data,
   title = "Data",
+  isSubmitting = false,
   onEdit,
   onDelete,
   onAdd,
+  onMultiDelete,
 }: DataTableProps<TData, TValue>) {
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
@@ -75,6 +79,37 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   );
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [globalFilter, setGlobalFilter] = React.useState("");
+  const [deletingRow, setDeletingRow] = React.useState<string | null>(null);
+  const [isDeletingMultiple, setIsDeletingMultiple] = React.useState(false);
+
+  // Get selected rows
+  const selectedRows = React.useMemo(() => {
+    return Object.keys(rowSelection).map((key) => {
+      const index = parseInt(key);
+      return data[index];
+    });
+  }, [rowSelection, data]);
+
+  // Handle multi-delete
+  const handleMultiDelete = async () => {
+    if (!onMultiDelete || selectedRows.length === 0) return;
+
+    if (
+      window.confirm(
+        `Are you sure you want to delete ${selectedRows.length} selected items?`
+      )
+    ) {
+      setIsDeletingMultiple(true);
+      try {
+        await onMultiDelete(selectedRows);
+        setRowSelection({});
+      } catch (error) {
+        console.error("Error deleting multiple items:", error);
+      } finally {
+        setIsDeletingMultiple(false);
+      }
+    }
+  };
 
   // Create stable action column reference
   const actionColumn = React.useMemo(
@@ -83,6 +118,8 @@ export function DataTable<TData extends Record<string, any>, TValue>({
       enableHiding: false,
       cell: ({ row }: any) => {
         const rowData = row.original as TData;
+        const isDeleting = deletingRow === row.id;
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -90,13 +127,18 @@ export function DataTable<TData extends Record<string, any>, TValue>({
                 variant="ghost"
                 className="h-8 w-8 p-0"
                 aria-label="Open menu"
+                disabled={isDeleting}
               >
-                <MoreHorizontal className="h-4 w-4" />
+                {isDeleting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MoreHorizontal className="h-4 w-4" />
+                )}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               {onEdit && (
-                <DropdownMenuItem>
+                <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
                   <EditDialog
                     row={rowData}
                     onEdit={onEdit}
@@ -107,18 +149,35 @@ export function DataTable<TData extends Record<string, any>, TValue>({
               )}
               {onDelete && (
                 <DropdownMenuItem
-                  onClick={() => {
+                  onClick={async () => {
                     if (
                       window.confirm(
                         "Are you sure you want to delete this item?"
                       )
                     ) {
-                      onDelete(rowData);
+                      setDeletingRow(row.id);
+                      try {
+                        await onDelete(rowData);
+                      } catch (error) {
+                        console.error("Error deleting item:", error);
+                      } finally {
+                        setDeletingRow(null);
+                      }
                     }
                   }}
+                  disabled={isDeleting}
                 >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  {isDeleting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </>
+                  )}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>
@@ -127,12 +186,44 @@ export function DataTable<TData extends Record<string, any>, TValue>({
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }),
+    [deletingRow]
+  );
+
+  // Create selection column
+  const selectionColumn: ColumnDef<TData, any> = React.useMemo(
+    () => ({
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableHiding: false,
+    }),
     []
   );
 
-  // Prepare columns with actions if needed
+  // Prepare columns with selection and actions
   const tableColumns = React.useMemo(() => {
     const cols = [...columns];
+
+    // Add selection column if multi-delete is available
+    if (onMultiDelete && !cols.some((col) => col.id === "select")) {
+      cols.unshift(selectionColumn);
+    }
 
     if ((onEdit || onDelete) && !cols.some((col) => col.id === "actions")) {
       // @ts-ignore - We know this is safe
@@ -140,7 +231,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     }
 
     return cols;
-  }, [columns, actionColumn, onEdit, onDelete]);
+  }, [columns, actionColumn, onEdit, onDelete, onMultiDelete, selectionColumn]);
 
   const table = useReactTable({
     data,
@@ -170,7 +261,12 @@ export function DataTable<TData extends Record<string, any>, TValue>({
   return (
     <Card className="w-full shadow-sm">
       <CardHeader className="px-6 py-4 flex flex-row items-center justify-between space-y-0 bg-muted/5">
-        <CardTitle className="text-xl font-semibold">{title}</CardTitle>
+        <CardTitle className="text-xl font-semibold">
+          {title}
+          {isSubmitting && (
+            <Loader2 className="h-4 w-4 animate-spin ml-2 inline-block" />
+          )}
+        </CardTitle>
         <div className="flex items-center space-x-2">
           <div className="relative w-64">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -181,6 +277,25 @@ export function DataTable<TData extends Record<string, any>, TValue>({
               className="w-full pl-8 rounded-md border"
             />
           </div>
+          {selectedRows.length > 0 && onMultiDelete && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleMultiDelete}
+              disabled={isDeletingMultiple}
+            >
+              {isDeletingMultiple ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-1" /> Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-1" /> Delete Selected (
+                  {selectedRows.length})
+                </>
+              )}
+            </Button>
+          )}
           {onAdd && (
             <Button
               variant="default"
@@ -288,6 +403,7 @@ function EditDialog<TData extends Record<string, any>, TValue>({
 }: EditDialogProps<TData, TValue>) {
   const [open, setOpen] = React.useState(false);
   const [editValues, setEditValues] = React.useState<Record<string, any>>({});
+  const [isSaving, setIsSaving] = React.useState(false);
 
   // Initialize edit values when dialog opens
   React.useEffect(() => {
@@ -301,7 +417,8 @@ function EditDialog<TData extends Record<string, any>, TValue>({
   }, [open, row]);
 
   // Handle saving edits
-  const handleEditSave = () => {
+  const handleEditSave = async () => {
+    setIsSaving(true);
     const processedValues: Record<string, any> = { ...editValues };
 
     // Process values to ensure they match the original data types
@@ -336,9 +453,27 @@ function EditDialog<TData extends Record<string, any>, TValue>({
       }
     });
 
-    // Convert back to Partial<TData> for the onEdit callback
-    const typedValues = processedValues as Partial<TData>;
-    onEdit(row, typedValues);
+    // Check if there are actual changes before calling onEdit
+    let hasChanges = false;
+    const typedValues: Partial<TData> = {};
+
+    Object.entries(processedValues).forEach(([key, value]) => {
+      if (value !== row[key]) {
+        hasChanges = true;
+        typedValues[key as keyof TData] = value as any;
+      }
+    });
+
+    // Only call onEdit if there are actual changes
+    if (hasChanges) {
+      try {
+        await onEdit(row, typedValues);
+      } catch (error) {
+        console.error("Error saving changes:", error);
+      }
+    }
+
+    setIsSaving(false);
     setOpen(false);
   };
 
@@ -410,9 +545,23 @@ function EditDialog<TData extends Record<string, any>, TValue>({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog
+      open={open}
+      onOpenChange={(newOpen) => {
+        // Only allow closing the dialog if we're not currently saving
+        if (!isSaving || !newOpen) {
+          setOpen(newOpen);
+        }
+      }}
+    >
       <DialogTrigger asChild>
-        <div className="flex items-center w-full cursor-pointer">
+        <div
+          className="flex items-center w-full cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpen(true);
+          }}
+        >
           <Pencil className="mr-2 h-4 w-4" />
           Edit
         </div>
@@ -463,12 +612,19 @@ function EditDialog<TData extends Record<string, any>, TValue>({
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="outline">
+            <Button type="button" variant="outline" disabled={isSaving}>
               Cancel
             </Button>
           </DialogClose>
-          <Button type="button" onClick={handleEditSave}>
-            Save Changes
+          <Button type="button" onClick={handleEditSave} disabled={isSaving}>
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Changes"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

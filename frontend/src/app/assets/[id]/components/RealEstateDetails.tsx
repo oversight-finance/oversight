@@ -1,81 +1,157 @@
-import { Asset } from "@/types/Account";
+import { RealEstate } from "@/types/RealEstate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
-import {
-  calculateAppreciation,
-  calculateFinancingProgress,
-  formatCurrency,
-  formatDate,
-} from "./utils";
+import { calculateAssetGrowth, formatCurrency, formatDate } from "./utils";
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 
 interface RealEstateDetailsProps {
-  asset: Asset;
+  realEstate: RealEstate;
 }
 
-export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
-  const { metadata } = asset;
-  if (!metadata) return null;
+export default function RealEstateDetails({
+  realEstate,
+}: RealEstateDetailsProps) {
+  if (!realEstate) return null;
 
   // Calculate appreciation over 60 months (5 years)
-  const appreciationRate = metadata.appreciationRate || 3; // Default to 3% if not specified
-  const appreciationData = calculateAppreciation(
-    asset.purchaseValue || 0,
-    appreciationRate,
+  const growthRate = realEstate.annual_growth_rate || 3; // Default to 3% if not specified
+  const appreciationData = calculateAssetGrowth(
+    realEstate.purchase_price || 0,
+    growthRate,
     60,
-    asset.purchaseDate || new Date().toISOString()
+    realEstate.purchase_date || new Date().toISOString()
   );
 
   // Get min and max values for the chart
   const minValue = appreciationData[0]?.value || 0;
   const maxValue = appreciationData[appreciationData.length - 1]?.value || 0;
 
-  // Calculate financing progress if applicable
-  const financingProgress =
-    metadata.financingType !== "cash" &&
-    metadata.monthlyPayment > 0 &&
-    asset.purchaseDate &&
-    metadata.interestRate !== undefined &&
-    metadata.loanTerm !== undefined &&
-    asset.purchaseValue !== undefined
-      ? calculateFinancingProgress(
-          asset.purchaseDate,
-          metadata.monthlyPayment,
-          metadata.interestRate,
-          metadata.loanTerm,
-          asset.purchaseValue
-        )
-      : null;
+  // Calculate current value (will be used since we aren't storing it in the database)
+  const currentValue = calculateCurrentValue(
+    realEstate.purchase_price,
+    realEstate.purchase_date,
+    growthRate
+  );
+
+  // Check if property has financing
+  const hasFinancing =
+    realEstate.mortgage_balance !== undefined &&
+    realEstate.mortgage_balance > 0 &&
+    realEstate.mortgage_interest_rate !== undefined &&
+    realEstate.mortgage_interest_rate > 0 &&
+    realEstate.mortgage_term_years !== undefined &&
+    realEstate.mortgage_term_years > 0 &&
+    realEstate.purchase_date;
+
+  // Calculate financing details - similar to VehicleDetails approach
+  const calculateFinancingDetails = () => {
+    if (
+      !hasFinancing ||
+      !realEstate.mortgage_balance ||
+      !realEstate.mortgage_term_years ||
+      !realEstate.purchase_date ||
+      !realEstate.mortgage_interest_rate
+    ) {
+      return null;
+    }
+
+    // Calculate months elapsed since mortgage start (assuming purchase date is mortgage start date)
+    const mortgageStartDate = new Date(realEstate.purchase_date);
+    const currentDate = new Date();
+    const totalMonthsElapsed =
+      (currentDate.getFullYear() - mortgageStartDate.getFullYear()) * 12 +
+      (currentDate.getMonth() - mortgageStartDate.getMonth());
+
+    // Cap the months to the loan term
+    const loanTermMonths = realEstate.mortgage_term_years * 12;
+    const monthsElapsed = Math.min(totalMonthsElapsed, loanTermMonths);
+
+    // Convert annual interest rate from percentage to decimal and then to monthly
+    const annualRateDecimal = realEstate.mortgage_interest_rate / 100;
+    const monthlyRate = annualRateDecimal / 12;
+
+    // Calculate the monthly payment using standard amortization formula
+    const monthlyPayment =
+      monthlyRate === 0
+        ? realEstate.mortgage_balance / loanTermMonths // For 0% loans
+        : (realEstate.mortgage_balance *
+            monthlyRate *
+            Math.pow(1 + monthlyRate, loanTermMonths)) /
+          (Math.pow(1 + monthlyRate, loanTermMonths) - 1);
+
+    // Total cost of the loan over its full term
+    const totalLoanCost = monthlyPayment * loanTermMonths;
+
+    // Total interest paid over the life of the loan
+    const totalExpectedInterest = totalLoanCost - realEstate.mortgage_balance;
+
+    // Calculate current payment progress using amortization schedule
+    let remainingBalance = realEstate.mortgage_balance;
+    let totalPrincipalPaid = 0;
+    let totalInterestPaid = 0;
+    let actualMonthsPaid = 0;
+
+    // Build amortization schedule month by month
+    for (let i = 0; i < monthsElapsed; i++) {
+      if (remainingBalance <= 0) break; // Loan already paid off
+
+      // Calculate interest for this month
+      const interestThisMonth = remainingBalance * monthlyRate;
+
+      // Calculate principal for this month
+      const principalThisMonth = Math.min(
+        monthlyPayment - interestThisMonth,
+        remainingBalance
+      );
+
+      // Update running totals
+      totalInterestPaid += interestThisMonth;
+      totalPrincipalPaid += principalThisMonth;
+      remainingBalance -= principalThisMonth;
+      actualMonthsPaid++;
+    }
+
+    // Calculate total paid so far
+    const totalPaid = monthlyPayment * actualMonthsPaid;
+
+    return {
+      monthsPaid: actualMonthsPaid,
+      totalPaid,
+      principalPaid: totalPrincipalPaid,
+      interestPaid: totalInterestPaid,
+      remainingBalance: remainingBalance > 0 ? remainingBalance : 0,
+      totalMonths: loanTermMonths,
+      totalExpectedInterest,
+      monthlyPayment,
+    };
+  };
+
+  const financingProgress = calculateFinancingDetails();
 
   // Calculate annual expenses
-  const annualPropertyTax = metadata.propertyTax || 0;
-  const annualInsurance = metadata.insuranceCost || 0;
-  const annualMaintenance = metadata.maintenanceCost || 0;
+  const annualPropertyTax = realEstate.property_tax_annual || 0;
+  const annualInsurance = 0; // Not stored in our schema yet
+  const annualMaintenance = 0; // Not stored in our schema yet
   const totalAnnualExpenses =
     annualPropertyTax + annualInsurance + annualMaintenance;
 
   // Calculate monthly expenses
   const monthlyExpenses = totalAnnualExpenses / 12;
 
-  // Calculate monthly income (if rental property)
-  const monthlyRentalIncome = metadata.rentalIncome || 0;
+  // Calculate monthly mortgage payment if applicable
+  const monthlyMortgagePayment = financingProgress?.monthlyPayment || 0;
 
-  // Calculate monthly cash flow
-  const monthlyCashFlow =
-    monthlyRentalIncome - monthlyExpenses - (metadata.monthlyPayment || 0);
-
-  // Calculate cap rate if it's a rental property
-  const capRate =
-    monthlyRentalIncome > 0 && asset.currentValue
-      ? ((monthlyRentalIncome * 12) / asset.currentValue) * 100
-      : 0;
+  // Calculate monthly cash flow (now just negative expenses since we don't track income)
+  const monthlyCashFlow = -monthlyExpenses - monthlyMortgagePayment;
 
   return (
     <div className="space-y-6">
@@ -89,49 +165,41 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
             <div>
               <p className="text-sm text-muted-foreground">Property Type</p>
               <p className="font-medium capitalize">
-                {metadata.propertyType?.replace("_", " ") || "N/A"}
+                {realEstate.property_type?.replace("_", " ") || "N/A"}
               </p>
             </div>
 
             <div>
               <p className="text-sm text-muted-foreground">Address</p>
-              <p className="font-medium">
-                {metadata.address?.street}, {metadata.address?.city},{" "}
-                {metadata.address?.state} {metadata.address?.zipCode}
-              </p>
+              <p className="font-medium">{realEstate.address || "N/A"}</p>
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            {/* We don't have these fields in our schema yet, so we're hiding them */}
+            {/* <div className="grid grid-cols-3 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Bedrooms</p>
-                <p className="font-medium">{metadata.bedrooms || "N/A"}</p>
+                <p className="font-medium">N/A</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Bathrooms</p>
-                <p className="font-medium">{metadata.bathrooms || "N/A"}</p>
+                <p className="font-medium">N/A</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Square Feet</p>
-                <p className="font-medium">
-                  {metadata.squareFeet
-                    ? metadata.squareFeet.toLocaleString()
-                    : "N/A"}
-                </p>
+                <p className="font-medium">N/A</p>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Year Built</p>
-                <p className="font-medium">{metadata.yearBuilt || "N/A"}</p>
+                <p className="font-medium">N/A</p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Lot Size</p>
-                <p className="font-medium">
-                  {metadata.lotSize ? `${metadata.lotSize} acres` : "N/A"}
-                </p>
+                <p className="font-medium">N/A</p>
               </div>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
 
@@ -144,46 +212,48 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
               <div>
                 <p className="text-sm text-muted-foreground">Purchase Price</p>
                 <p className="font-medium">
-                  {formatCurrency(asset.purchaseValue || 0)}
+                  {formatCurrency(realEstate.purchase_price || 0)}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Current Value</p>
                 <p className="font-medium">
-                  {formatCurrency(asset.currentValue || 0)}
+                  {formatCurrency(currentValue || 0)}
                 </p>
               </div>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Purchase Date</p>
               <p className="font-medium">
-                {asset.purchaseDate ? formatDate(asset.purchaseDate) : "N/A"}
+                {realEstate.purchase_date
+                  ? formatDate(realEstate.purchase_date)
+                  : "N/A"}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Value Change</p>
-              {asset.purchaseValue && asset.currentValue ? (
+              {realEstate.purchase_price && currentValue ? (
                 <div className="flex items-center gap-2">
                   <p
                     className={`font-medium ${
-                      asset.currentValue >= asset.purchaseValue
+                      currentValue >= realEstate.purchase_price
                         ? "text-success"
                         : "text-destructive"
                     }`}
                   >
-                    {formatCurrency(asset.currentValue - asset.purchaseValue)}
+                    {formatCurrency(currentValue - realEstate.purchase_price)}
                   </p>
                   <p
                     className={`text-sm ${
-                      asset.currentValue >= asset.purchaseValue
+                      currentValue >= realEstate.purchase_price
                         ? "text-success"
                         : "text-destructive"
                     }`}
                   >
                     (
                     {(
-                      ((asset.currentValue - asset.purchaseValue) /
-                        asset.purchaseValue) *
+                      ((currentValue - realEstate.purchase_price) /
+                        realEstate.purchase_price) *
                       100
                     ).toFixed(1)}
                     %)
@@ -196,45 +266,48 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
             <div>
               <p className="text-sm text-muted-foreground">Financing Type</p>
               <p className="font-medium capitalize">
-                {metadata.financingType || "Cash"}
+                {realEstate.mortgage_balance && realEstate.mortgage_balance > 0
+                  ? "Mortgage"
+                  : "Cash"}
               </p>
             </div>
-            {metadata.financingType && metadata.financingType !== "cash" && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
+            {realEstate.mortgage_interest_rate &&
+              realEstate.mortgage_interest_rate > 0 && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Interest Rate
+                      </p>
+                      <p className="font-medium">
+                        {realEstate.mortgage_interest_rate
+                          ? `${realEstate.mortgage_interest_rate}%`
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Monthly Payment
+                      </p>
+                      <p className="font-medium">
+                        {financingProgress?.monthlyPayment
+                          ? formatCurrency(financingProgress.monthlyPayment)
+                          : "N/A"}
+                      </p>
+                    </div>
+                  </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">
-                      Interest Rate
-                    </p>
+                    <p className="text-sm text-muted-foreground">Loan Term</p>
                     <p className="font-medium">
-                      {metadata.interestRate
-                        ? `${metadata.interestRate}%`
+                      {realEstate.mortgage_term_years
+                        ? `${realEstate.mortgage_term_years * 12} months (${
+                            realEstate.mortgage_term_years
+                          } years)`
                         : "N/A"}
                     </p>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">
-                      Monthly Payment
-                    </p>
-                    <p className="font-medium">
-                      {metadata.monthlyPayment
-                        ? formatCurrency(metadata.monthlyPayment)
-                        : "N/A"}
-                    </p>
-                  </div>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Loan Term</p>
-                  <p className="font-medium">
-                    {metadata.loanTerm
-                      ? `${metadata.loanTerm} months (${(
-                          metadata.loanTerm / 12
-                        ).toFixed(1)} years)`
-                      : "N/A"}
-                  </p>
-                </div>
-              </>
-            )}
+                </>
+              )}
           </CardContent>
         </Card>
       </div>
@@ -247,8 +320,9 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
             <CardHeader>
               <CardTitle className="text-base">Financing Progress</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {financingProgress.monthsPaid} of {metadata.loanTerm} months
-                completed
+                {financingProgress.remainingBalance === 0
+                  ? "Mortgage fully paid off!"
+                  : `${financingProgress.monthsPaid} of ${financingProgress.totalMonths} months completed`}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -265,6 +339,24 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
                   <span className="text-muted-foreground">Interest Paid:</span>
                   <span>{formatCurrency(financingProgress.interestPaid)}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Total Expected Interest:
+                  </span>
+                  <span>
+                    {formatCurrency(financingProgress.totalExpectedInterest)}
+                  </span>
+                </div>
+                {financingProgress.remainingBalance > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Remaining Balance:
+                    </span>
+                    <span>
+                      {formatCurrency(financingProgress.remainingBalance)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Principal vs Interest breakdown */}
@@ -275,9 +367,11 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
                     className="h-full bg-primary"
                     style={{
                       width: `${
-                        (financingProgress.principalPaid /
-                          financingProgress.totalPaid) *
-                        100
+                        financingProgress.totalPaid > 0
+                          ? (financingProgress.principalPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          : 0
                       }%`,
                     }}
                   />
@@ -285,9 +379,11 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
                     className="h-full bg-destructive"
                     style={{
                       width: `${
-                        (financingProgress.interestPaid /
-                          financingProgress.totalPaid) *
-                        100
+                        financingProgress.totalPaid > 0
+                          ? (financingProgress.interestPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          : 0
                       }%`,
                     }}
                   />
@@ -297,11 +393,13 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
                     <div className="w-2 h-2 bg-primary rounded-full mr-1"></div>
                     <span className="text-muted-foreground">
                       Principal (
-                      {(
-                        (financingProgress.principalPaid /
-                          financingProgress.totalPaid) *
-                        100
-                      ).toFixed(1)}
+                      {financingProgress.totalPaid > 0
+                        ? (
+                            (financingProgress.principalPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          ).toFixed(1)
+                        : 0}
                       %)
                     </span>
                   </div>
@@ -309,11 +407,13 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
                     <div className="w-2 h-2 bg-destructive rounded-full mr-1"></div>
                     <span className="text-muted-foreground">
                       Interest (
-                      {(
-                        (financingProgress.interestPaid /
-                          financingProgress.totalPaid) *
-                        100
-                      ).toFixed(1)}
+                      {financingProgress.totalPaid > 0
+                        ? (
+                            (financingProgress.interestPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          ).toFixed(1)
+                        : 0}
                       %)
                     </span>
                   </div>
@@ -328,51 +428,63 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
                     className="h-full bg-success"
                     style={{
                       width: `${
-                        (financingProgress.totalPaid /
-                          (asset.purchaseValue || 1)) *
-                        100
+                        (realEstate.mortgage_balance || 0) > 0
+                          ? (financingProgress.principalPaid /
+                              (realEstate.mortgage_balance || 0)) *
+                            100
+                          : 0
                       }%`,
                     }}
                   />
-                  <div
-                    className="h-full bg-black"
-                    style={{
-                      width: `${
-                        (financingProgress.remainingBalance /
-                          (asset.purchaseValue || 1)) *
-                        100
-                      }%`,
-                    }}
-                  />
+                  {financingProgress.remainingBalance > 0 && (
+                    <div
+                      className="h-full bg-black"
+                      style={{
+                        width: `${
+                          (realEstate.mortgage_balance || 0) > 0
+                            ? (financingProgress.remainingBalance /
+                                (realEstate.mortgage_balance || 0)) *
+                              100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="flex justify-between mt-2 text-xs">
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-success rounded-full mr-1"></div>
                     <span className="text-muted-foreground">
                       Paid (
-                      {(
-                        (financingProgress.totalPaid /
-                          (asset.purchaseValue || 1)) *
-                        100
-                      ).toFixed(1)}
+                      {(realEstate.mortgage_balance || 0) > 0
+                        ? (
+                            (financingProgress.principalPaid /
+                              (realEstate.mortgage_balance || 0)) *
+                            100
+                          ).toFixed(1)
+                        : 0}
                       %)
                     </span>
                   </div>
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-black rounded-full mr-1"></div>
-                    <span className="text-muted-foreground">
-                      Remaining (
-                      {(
-                        (financingProgress.remainingBalance /
-                          (asset.purchaseValue || 1)) *
-                        100
-                      ).toFixed(1)}
-                      %)
-                    </span>
-                  </div>
+                  {financingProgress.remainingBalance > 0 && (
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-black rounded-full mr-1"></div>
+                      <span className="text-muted-foreground">
+                        Remaining (
+                        {(realEstate.mortgage_balance || 0) > 0
+                          ? (
+                              (financingProgress.remainingBalance /
+                                (realEstate.mortgage_balance || 0)) *
+                              100
+                            ).toFixed(1)
+                          : 0}
+                        %)
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                  <span>{formatCurrency(financingProgress.totalPaid)}</span>
+                  <span>{formatCurrency(financingProgress.principalPaid)}</span>
                   <span>
                     {formatCurrency(financingProgress.remainingBalance)}
                   </span>
@@ -383,9 +495,7 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">
-                Property Expenses & Income
-              </CardTitle>
+              <CardTitle className="text-base">Property Expenses</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
@@ -416,12 +526,8 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
 
               <div className="pt-2 border-t">
                 <div className="flex justify-between items-center">
-                  <p className="text-sm font-medium">Monthly Cash Flow</p>
-                  <p
-                    className={`font-medium ${
-                      monthlyCashFlow >= 0 ? "text-success" : "text-destructive"
-                    }`}
-                  >
+                  <p className="text-sm font-medium">Total Monthly Costs</p>
+                  <p className="font-medium text-destructive">
                     {formatCurrency(monthlyCashFlow)}
                   </p>
                 </div>
@@ -429,92 +535,116 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
                 <div className="mt-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">
-                      Monthly Income:
-                    </span>
-                    <span className="text-success">
-                      {formatCurrency(monthlyRentalIncome)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">
-                      Monthly Expenses:
+                      Property Expenses:
                     </span>
                     <span className="text-destructive">
                       -{formatCurrency(monthlyExpenses)}
                     </span>
                   </div>
-                  {metadata.monthlyPayment > 0 && (
+                  {monthlyMortgagePayment > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
-                        Monthly Payment:
+                        Mortgage Payment:
                       </span>
                       <span className="text-destructive">
-                        -{formatCurrency(metadata.monthlyPayment)}
+                        -{formatCurrency(monthlyMortgagePayment)}
                       </span>
                     </div>
                   )}
                 </div>
               </div>
-
-              {monthlyRentalIncome > 0 && (
-                <div className="pt-2 border-t">
-                  <div className="flex justify-between items-center">
-                    <p className="text-sm font-medium">Cap Rate</p>
-                    <p className="font-medium">{capRate.toFixed(2)}%</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Annual rental income divided by property value
-                  </p>
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
 
         {/* Appreciation Chart Card */}
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle className="text-base">
               Projected Value Appreciation
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Based on {appreciationRate}% annual appreciation rate
+              Based on {growthRate}% annual appreciation rate
             </p>
           </CardHeader>
-          <CardContent>
-            <div className="h-[350px] w-full">
+          <CardContent className="flex-1">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
+                <AreaChart
                   data={appreciationData}
-                  margin={{ top: 20, right: 30, left: 40, bottom: 70 }}
+                  margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
                 >
+                  <defs>
+                    <linearGradient
+                      id={`valueGradient-${realEstate.id}`}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor={`hsl(var(${
+                          growthRate >= 0 ? "--success" : "--destructive"
+                        }))`}
+                        stopOpacity={0.8}
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor={`hsl(var(${
+                          growthRate >= 0 ? "--success" : "--destructive"
+                        }))`}
+                        stopOpacity={0.2}
+                      />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="month"
                     angle={-45}
                     textAnchor="end"
-                    height={80}
+                    height={60}
                     interval={Math.floor(appreciationData.length / 10)}
                     tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={true}
+                    tickMargin={8}
                   />
                   <YAxis
                     tickFormatter={(value) => formatCurrency(value)}
                     domain={[minValue * 0.9, maxValue * 1.05]}
                     width={70}
                     tick={{ fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
                   />
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value as number)}
-                    labelFormatter={(label) => `Date: ${label}`}
+                  <ChartTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const dataPoint = payload[0].payload;
+                      return (
+                        <div className="rounded-lg border bg-background p-2 shadow-sm">
+                          <div className="text-sm text-muted-foreground">
+                            {dataPoint.month}
+                          </div>
+                          <div className="font-bold">
+                            Value: {formatCurrency(dataPoint.value)}
+                          </div>
+                        </div>
+                      );
+                    }}
                   />
-                  <Line
+                  <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                  <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="hsl(var(--success))"
-                    strokeWidth={2}
-                    dot={false}
+                    stroke={`hsl(var(${
+                      growthRate >= 0 ? "--success" : "--destructive"
+                    }))`}
+                    fill={`url(#valueGradient-${realEstate.id})`}
+                    fillOpacity={0.6}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
@@ -522,4 +652,31 @@ export default function RealEstateDetails({ asset }: RealEstateDetailsProps) {
       </div>
     </div>
   );
+}
+
+// Helper function to calculate the current value of a real estate property
+function calculateCurrentValue(
+  purchasePrice: number = 0,
+  purchaseDate: string = new Date().toISOString(),
+  annualGrowthRate: number = 3
+): number {
+  if (!purchasePrice || !purchaseDate) return purchasePrice;
+
+  const purchaseDateTime = new Date(purchaseDate).getTime();
+  const currentDateTime = new Date().getTime();
+
+  // Calculate years elapsed (including partial years)
+  const millisecondsPerYear = 1000 * 60 * 60 * 24 * 365.25;
+  const yearsElapsed =
+    (currentDateTime - purchaseDateTime) / millisecondsPerYear;
+
+  // If the purchase date is in the future, return the purchase price
+  if (yearsElapsed < 0) return purchasePrice;
+
+  // Calculate appreciated value using compound appreciation
+  const currentValue =
+    purchasePrice * Math.pow(1 + annualGrowthRate / 100, yearsElapsed);
+
+  // Round to 2 decimal places
+  return Math.round(currentValue * 100) / 100;
 }

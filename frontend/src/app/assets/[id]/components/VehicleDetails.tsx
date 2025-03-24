@@ -5,15 +5,17 @@ import {
 } from "@/types/Vehicle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ReferenceLine,
 } from "recharts";
-import { calculateDepreciation, formatCurrency, formatDate } from "./utils";
+import { calculateAssetGrowth, formatCurrency, formatDate } from "./utils";
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 
 interface VehicleDetailsProps {
   asset: Vehicle;
@@ -21,8 +23,9 @@ interface VehicleDetailsProps {
 
 export default function VehicleDetails({ asset }: VehicleDetailsProps) {
   // Calculate depreciation over 60 months (5 years)
-  const depreciationRate = 15; // Default to 15% annual depreciation
-  const depreciationData = calculateDepreciation(
+  // Use negative growth rate for depreciation
+  const depreciationRate = asset.annual_growth_rate || -15; // Default to -15% annual depreciation
+  const depreciationData = calculateAssetGrowth(
     asset.purchase_price || 0,
     depreciationRate,
     60,
@@ -36,19 +39,16 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
   // Calculate financing progress
   const hasFinancing =
     asset.payment_method !== CarPaymentMethod.CASH &&
-    asset.monthly_payment &&
     asset.loan_term_months &&
     asset.interest_rate &&
-    asset.loan_start_date;
-
-  const remainingBalance = calculateRemainingLoanBalance(asset);
+    asset.loan_start_date &&
+    asset.loan_amount;
 
   // Calculate financing progress details
   const calculateFinancingDetails = () => {
     if (
       !hasFinancing ||
       !asset.loan_amount ||
-      !asset.monthly_payment ||
       !asset.loan_term_months ||
       !asset.loan_start_date
     ) {
@@ -58,46 +58,97 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
     // Calculate months elapsed since loan start
     const loanStartDate = new Date(asset.loan_start_date);
     const currentDate = new Date();
-    const monthsElapsed = Math.min(
+    const totalMonthsElapsed =
       (currentDate.getFullYear() - loanStartDate.getFullYear()) * 12 +
-        (currentDate.getMonth() - loanStartDate.getMonth()),
-      asset.loan_term_months
-    );
+      (currentDate.getMonth() - loanStartDate.getMonth());
 
-    // Calculate total paid so far
-    const totalPaid = asset.monthly_payment * monthsElapsed;
+    // Cap the months to the loan term
+    const monthsElapsed = Math.min(totalMonthsElapsed, asset.loan_term_months);
 
-    // Calculate interest rate per month
-    const monthlyInterestRate = asset.interest_rate
-      ? asset.interest_rate / 100 / 12
-      : 0;
+    // Calculate standard monthly payment using amortization formula
+    // Convert annual interest rate from percentage to decimal (e.g., 6% -> 0.06)
+    // Then convert to monthly rate (e.g., 0.06/12 = 0.005)
+    const annualRateDecimal = (asset.interest_rate || 0) / 100;
+    const monthlyRate = annualRateDecimal / 12;
 
-    // Calculate total interest paid
-    let balance = asset.loan_amount;
-    let principalPaid = 0;
-    let interestPaid = 0;
+    // For debugging
+    console.log(`Interest Rate: ${asset.interest_rate}%`);
+    console.log(`Annual Rate (decimal): ${annualRateDecimal}`);
+    console.log(`Monthly Rate: ${monthlyRate}`);
 
+    // Calculate the monthly payment using standard amortization formula
+    // P = L[r(1+r)^n]/[(1+r)^n-1] where:
+    // P = payment, L = loan amount, r = monthly interest rate, n = number of payments
+    const monthlyPayment =
+      monthlyRate === 0
+        ? asset.loan_amount / asset.loan_term_months // For 0% loans
+        : (asset.loan_amount *
+            monthlyRate *
+            Math.pow(1 + monthlyRate, asset.loan_term_months)) /
+          (Math.pow(1 + monthlyRate, asset.loan_term_months) - 1);
+
+    // Total cost of the loan over its full term
+    const totalLoanCost = monthlyPayment * asset.loan_term_months;
+
+    // Total interest paid over the life of the loan
+    const totalExpectedInterest = totalLoanCost - asset.loan_amount;
+
+    // Now calculate current payment progress using amortization schedule
+    let remainingBalance = asset.loan_amount;
+    let totalPrincipalPaid = 0;
+    let totalInterestPaid = 0;
+    let actualMonthsPaid = 0;
+
+    // Build amortization schedule month by month
     for (let i = 0; i < monthsElapsed; i++) {
-      const interestForMonth = balance * monthlyInterestRate;
-      const principalForMonth = Math.min(
-        asset.monthly_payment - interestForMonth,
-        balance
+      if (remainingBalance <= 0) break; // Loan already paid off
+
+      // Calculate interest for this month
+      const interestThisMonth = remainingBalance * monthlyRate;
+
+      // Calculate principal for this month
+      const principalThisMonth = Math.min(
+        monthlyPayment - interestThisMonth,
+        remainingBalance
       );
 
-      interestPaid += interestForMonth;
-      principalPaid += principalForMonth;
-      balance -= principalForMonth;
-
-      if (balance <= 0) break;
+      // Update running totals
+      totalInterestPaid += interestThisMonth;
+      totalPrincipalPaid += principalThisMonth;
+      remainingBalance -= principalThisMonth;
+      actualMonthsPaid++;
     }
 
-    return {
-      monthsPaid: monthsElapsed,
-      totalPaid,
-      principalPaid,
-      interestPaid,
-      remainingBalance: balance > 0 ? balance : 0,
+    // Calculate total paid so far
+    const totalPaid = monthlyPayment * actualMonthsPaid;
+
+    // Log values for debugging
+    console.log({
+      loanAmount: asset.loan_amount,
+      interestRatePercent: asset.interest_rate,
+      annualRateDecimal,
+      monthlyRate,
       totalMonths: asset.loan_term_months,
+      monthlyPayment,
+      totalLoanCost,
+      totalExpectedInterest,
+      monthsElapsed,
+      actualMonthsPaid,
+      totalPaid,
+      totalPrincipalPaid,
+      totalInterestPaid,
+      remainingBalance,
+    });
+
+    return {
+      monthsPaid: actualMonthsPaid,
+      totalPaid,
+      principalPaid: totalPrincipalPaid,
+      interestPaid: totalInterestPaid,
+      remainingBalance: remainingBalance > 0 ? remainingBalance : 0,
+      totalMonths: asset.loan_term_months,
+      totalExpectedInterest,
+      monthlyPayment,
     };
   };
 
@@ -223,8 +274,8 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                         Monthly Payment
                       </p>
                       <p className="font-medium">
-                        {asset.monthly_payment
-                          ? formatCurrency(asset.monthly_payment)
+                        {financingProgress?.monthlyPayment
+                          ? formatCurrency(financingProgress.monthlyPayment)
                           : "N/A"}
                       </p>
                     </div>
@@ -263,8 +314,9 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
             <CardHeader>
               <CardTitle>Financing Progress</CardTitle>
               <p className="text-sm text-muted-foreground">
-                {financingProgress.monthsPaid} of{" "}
-                {financingProgress.totalMonths} months completed
+                {financingProgress.remainingBalance === 0
+                  ? "Loan fully paid off!"
+                  : `${financingProgress.monthsPaid} of ${financingProgress.totalMonths} months completed`}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -281,6 +333,24 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                   <span className="text-muted-foreground">Interest Paid:</span>
                   <span>{formatCurrency(financingProgress.interestPaid)}</span>
                 </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Total Expected Interest:
+                  </span>
+                  <span>
+                    {formatCurrency(financingProgress.totalExpectedInterest)}
+                  </span>
+                </div>
+                {financingProgress.remainingBalance > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      Remaining Balance:
+                    </span>
+                    <span>
+                      {formatCurrency(financingProgress.remainingBalance)}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Principal vs Interest breakdown */}
@@ -291,9 +361,11 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                     className="h-full bg-primary"
                     style={{
                       width: `${
-                        (financingProgress.principalPaid /
-                          financingProgress.totalPaid) *
-                        100
+                        financingProgress.totalPaid > 0
+                          ? (financingProgress.principalPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          : 0
                       }%`,
                     }}
                   />
@@ -301,9 +373,11 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                     className="h-full bg-destructive"
                     style={{
                       width: `${
-                        (financingProgress.interestPaid /
-                          financingProgress.totalPaid) *
-                        100
+                        financingProgress.totalPaid > 0
+                          ? (financingProgress.interestPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          : 0
                       }%`,
                     }}
                   />
@@ -313,11 +387,13 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                     <div className="w-2 h-2 bg-primary rounded-full mr-1"></div>
                     <span className="text-muted-foreground">
                       Principal (
-                      {(
-                        (financingProgress.principalPaid /
-                          financingProgress.totalPaid) *
-                        100
-                      ).toFixed(1)}
+                      {financingProgress.totalPaid > 0
+                        ? (
+                            (financingProgress.principalPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          ).toFixed(1)
+                        : 0}
                       %)
                     </span>
                   </div>
@@ -325,11 +401,13 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                     <div className="w-2 h-2 bg-destructive rounded-full mr-1"></div>
                     <span className="text-muted-foreground">
                       Interest (
-                      {(
-                        (financingProgress.interestPaid /
-                          financingProgress.totalPaid) *
-                        100
-                      ).toFixed(1)}
+                      {financingProgress.totalPaid > 0
+                        ? (
+                            (financingProgress.interestPaid /
+                              financingProgress.totalPaid) *
+                            100
+                          ).toFixed(1)
+                        : 0}
                       %)
                     </span>
                   </div>
@@ -344,51 +422,63 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                     className="h-full bg-success"
                     style={{
                       width: `${
-                        (financingProgress.totalPaid /
-                          (asset.loan_amount || 1)) *
-                        100
+                        (asset.loan_amount || 0) > 0
+                          ? (financingProgress.principalPaid /
+                              (asset.loan_amount || 0)) *
+                            100
+                          : 0
                       }%`,
                     }}
                   />
-                  <div
-                    className="h-full bg-black"
-                    style={{
-                      width: `${
-                        (financingProgress.remainingBalance /
-                          (asset.loan_amount || 1)) *
-                        100
-                      }%`,
-                    }}
-                  />
+                  {financingProgress.remainingBalance > 0 && (
+                    <div
+                      className="h-full bg-black"
+                      style={{
+                        width: `${
+                          (asset.loan_amount || 0) > 0
+                            ? (financingProgress.remainingBalance /
+                                (asset.loan_amount || 0)) *
+                              100
+                            : 0
+                        }%`,
+                      }}
+                    />
+                  )}
                 </div>
                 <div className="flex justify-between mt-2 text-xs">
                   <div className="flex items-center">
                     <div className="w-2 h-2 bg-success rounded-full mr-1"></div>
                     <span className="text-muted-foreground">
                       Paid (
-                      {(
-                        (financingProgress.totalPaid /
-                          (asset.loan_amount || 1)) *
-                        100
-                      ).toFixed(1)}
+                      {(asset.loan_amount || 0) > 0
+                        ? (
+                            (financingProgress.principalPaid /
+                              (asset.loan_amount || 0)) *
+                            100
+                          ).toFixed(1)
+                        : 0}
                       %)
                     </span>
                   </div>
-                  <div className="flex items-center">
-                    <div className="w-2 h-2 bg-black rounded-full mr-1"></div>
-                    <span className="text-muted-foreground">
-                      Remaining (
-                      {(
-                        (financingProgress.remainingBalance /
-                          (asset.loan_amount || 1)) *
-                        100
-                      ).toFixed(1)}
-                      %)
-                    </span>
-                  </div>
+                  {financingProgress.remainingBalance > 0 && (
+                    <div className="flex items-center">
+                      <div className="w-2 h-2 bg-black rounded-full mr-1"></div>
+                      <span className="text-muted-foreground">
+                        Remaining (
+                        {(asset.loan_amount || 0) > 0
+                          ? (
+                              (financingProgress.remainingBalance /
+                                (asset.loan_amount || 0)) *
+                              100
+                            ).toFixed(1)
+                          : 0}
+                        %)
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                  <span>{formatCurrency(financingProgress.totalPaid)}</span>
+                  <span>{formatCurrency(financingProgress.principalPaid)}</span>
                   <span>
                     {formatCurrency(financingProgress.remainingBalance)}
                   </span>
@@ -399,47 +489,91 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
         )}
 
         {/* Depreciation Chart Card */}
-        <Card>
+        <Card className="flex flex-col">
           <CardHeader>
             <CardTitle>Projected Value Depreciation</CardTitle>
             <p className="text-sm text-muted-foreground">
               Based on {depreciationRate}% annual depreciation rate
             </p>
           </CardHeader>
-          <CardContent>
-            <div className="h-[350px] w-full">
+          <CardContent className="flex-1">
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
+                <AreaChart
                   data={depreciationData}
-                  margin={{ top: 20, right: 30, left: 40, bottom: 70 }}
+                  margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
                 >
+                  <defs>
+                    <linearGradient
+                      id={`valueGradient-${asset.id}`}
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor={`hsl(var(${
+                          depreciationRate >= 0 ? "--success" : "--destructive"
+                        }))`}
+                        stopOpacity={0.8}
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor={`hsl(var(${
+                          depreciationRate >= 0 ? "--success" : "--destructive"
+                        }))`}
+                        stopOpacity={0.2}
+                      />
+                    </linearGradient>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis
                     dataKey="month"
                     angle={-45}
                     textAnchor="end"
-                    height={80}
+                    height={60}
                     interval={Math.floor(depreciationData.length / 10)}
                     tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={true}
+                    tickMargin={8}
                   />
                   <YAxis
                     tickFormatter={(value) => formatCurrency(value)}
                     domain={[minValue * 0.9, maxValue * 1.05]}
                     width={70}
                     tick={{ fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
                   />
-                  <Tooltip
-                    formatter={(value) => formatCurrency(value as number)}
-                    labelFormatter={(label) => `Date: ${label}`}
+                  <ChartTooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const dataPoint = payload[0].payload;
+                      return (
+                        <div className="rounded-lg border bg-background p-2 shadow-sm">
+                          <div className="text-sm text-muted-foreground">
+                            {dataPoint.month}
+                          </div>
+                          <div className="font-bold">
+                            Value: {formatCurrency(dataPoint.value)}
+                          </div>
+                        </div>
+                      );
+                    }}
                   />
-                  <Line
+                  <ReferenceLine y={0} stroke="hsl(var(--border))" />
+                  <Area
                     type="monotone"
                     dataKey="value"
-                    stroke="hsl(var(--primary))"
-                    strokeWidth={2}
-                    dot={false}
+                    stroke={`hsl(var(${
+                      depreciationRate >= 0 ? "--success" : "--destructive"
+                    }))`}
+                    fill={`url(#valueGradient-${asset.id})`}
+                    fillOpacity={0.6}
                   />
-                </LineChart>
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
