@@ -11,6 +11,7 @@ import {
   BankAccountWithTransactions,
 } from "@/types";
 import BankTransactionTable from "@/components/TransactionTables/BankAccount/BankTransactionTable";
+import DeleteAccountAlert from "@/components/DeleteAccountAlert/DeleteAccountAlert";
 
 // Helper to calculate account balance from transactions
 const calculateAccountBalance = (
@@ -22,7 +23,6 @@ const calculateAccountBalance = (
 export default function AccountPage() {
   const { id } = useParams();
   const { accounts, isLoading, error } = useAccounts();
-
   const [balance, setBalance] = useState<number>(0);
 
   // Update balance when account changes
@@ -61,9 +61,11 @@ export default function AccountPage() {
           </h1>
           <p className="text-muted-foreground">Manage your transactions</p>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
-          <div className="text-sm text-muted-foreground">Current Balance</div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
+            <div className="text-sm text-muted-foreground">Current Balance</div>
+          </div>
         </div>
       </div>
 
@@ -90,6 +92,14 @@ export default function AccountPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="flex justify-end">
+        <DeleteAccountAlert
+          accountId={id as string}
+          accountType={AccountType.BANK}
+          accountName={account.account_name}
+        />
       </div>
     </div>
   );

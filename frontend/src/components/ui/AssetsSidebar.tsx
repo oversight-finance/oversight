@@ -38,6 +38,7 @@ import CryptoWalletForm from "@/components/LinkedAccounts/CryptoWalletForm";
 import { AccountType } from "@/types/Account";
 import React from "react";
 import { AssetType } from "@/types/Asset";
+import InvestmentForm from "../LinkedAccounts/InvestmentForm";
 
 const assetTypeIcons: Record<AssetType, React.ReactNode> = {
   [AssetType.VEHICLE]: <Car className="h-4 w-4" />,
@@ -176,11 +177,13 @@ export function AssetsSidebar() {
       }
     } else {
       switch (dialogState.subtype as AccountType) {
+        // Add other account type forms here as they are implemented
         case AccountType.BANK:
           return <BankForm />;
-        // Add other account type forms here as they are implemented
         case AccountType.CRYPTO:
           return <CryptoWalletForm />;
+        case AccountType.INVESTMENT:
+          return <InvestmentForm />;
         default:
           return (
             <div className="p-4 text-center text-muted-foreground">
@@ -276,15 +279,35 @@ export function AssetsSidebar() {
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.INVESTMENT) && (
-            <SidebarMenuSub>
-              <SidebarMenuSubButton
-                onClick={() => handleAddAccount(AccountType.INVESTMENT)}
-                className="italic text-muted-foreground"
-              >
-                <PlusCircle className="h-4 w-4" />
-                <span>Add Investment Account</span>
-              </SidebarMenuSubButton>
-            </SidebarMenuSub>
+            <>
+              <SidebarMenuSub>
+                {investmentAccounts.map((account) => (
+                  <SidebarMenuSubButton
+                    key={account.id}
+                    onClick={() => router.push(`/accounts/investment/${account.id}`)}
+                    className="py-2 h-auto"
+                  >
+                    <div className="flex flex-col items-start gap-1 w-full">
+                      <span className="leading-none">
+                        {account.account_name || `Account ${account.id}`}
+                      </span>
+                      <span className="text-xs text-muted-foreground leading-none">
+                        {formatTotalAmount(account.balance)}
+                      </span>
+                    </div>
+                  </SidebarMenuSubButton>
+                ))}
+              </SidebarMenuSub>
+              <SidebarMenuSub>
+                <SidebarMenuSubButton
+                  onClick={() => handleAddAccount(AccountType.INVESTMENT)}
+                  className="italic text-muted-foreground"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Add Investment Account</span>
+                </SidebarMenuSubButton>
+              </SidebarMenuSub>
+            </>
           )}
         </SidebarMenuItem>
 

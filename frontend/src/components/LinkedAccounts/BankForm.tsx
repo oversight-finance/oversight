@@ -1,15 +1,15 @@
 import { useState, useRef } from "react";
-import { createBankAccount } from "@/database/BankAccounts";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { BankAccountType, AccountType } from "@/types/Account";
+import { BankAccountType, AccountType, BankAccount } from "@/types/Account";
 import { useAccounts } from "@/contexts/AccountsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import { DialogClose } from "@/components/ui/dialog";
+import { toast } from "@/hooks/use-toast";
 
 export default function BankForm() {
-  const { refreshAccounts } = useAccounts();
+  const { addAccount } = useAccounts();
   const { getUserId } = useAuth();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,46 +30,63 @@ export default function BankForm() {
     setIsSubmitting(true);
 
     try {
-      const userId = getUserId();
+      const userId = await getUserId();
+
       if (!userId) {
-        console.error("Unable to get current user ID");
+        toast({
+          title: "Error",
+          description: "User ID not available. Please log in again.",
+          variant: "destructive",
+        });
         return;
       }
 
-      // Create the bank account and get the new account ID
-      const newAccountId = await createBankAccount(userId, {
+      const account = {
+        user_id: userId,
+        account_type: AccountType.BANK,
         account_name: formData.account_name,
         institution_name: formData.institution_name,
-        account_number: formData.account_number,
-        routing_number: formData.routing_number,
+        account_number: formData.account_number || undefined,
+        routing_number: formData.routing_number || undefined,
         currency: formData.currency,
         balance: formData.balance,
-        account_type: AccountType.BANK,
-      });
+      };
 
-      // Reset form
-      setFormData({
-        account_name: "",
-        institution_name: "",
-        account_number: "",
-        routing_number: "",
-        currency: "CAD",
-        balance: 0,
-        account_type: BankAccountType.CHECKING,
-      });
+      const result = await addAccount(account as BankAccount);
 
-      // Close the dialog programmatically
-      if (dialogCloseRef.current) {
-        dialogCloseRef.current.click();
-      }
+      if (result) {
+        toast({
+          title: "Success",
+          description: "Bank account added successfully",
+        });
 
-      // Redirect to the new account page if we have an ID
-      if (newAccountId) {
-        refreshAccounts();
-        router.push(`/accounts/bank/${newAccountId}`);
+        // Close the dialog using the DialogClose ref
+        if (dialogCloseRef.current) {
+          dialogCloseRef.current.click();
+        }
+
+        // Reset form
+        setFormData({
+          account_name: "",
+          institution_name: "",
+          account_number: "",
+          routing_number: "",
+          currency: "CAD",
+          balance: 0,
+          account_type: BankAccountType.CHECKING,
+        });
+
+        router.push(`/accounts/bank/${result.id}`);
+      } else {
+        throw new Error("Failed to create bank account");
       }
     } catch (error) {
       console.error("Error creating bank account:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create bank account",
+        variant: "destructive",
+      });
     } finally {
       setIsSubmitting(false);
     }

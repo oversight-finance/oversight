@@ -270,27 +270,20 @@ export const fetchBankAccountWithTransactions = async (
   try {
     const supabase = createClient();
 
-    // Fetch the account and its transactions in a single query with a join
+    // First, fetch the account data
     const { data, error } = await supabase
       .from("accounts")
       .select(
         `
         *,
-        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency, balance),
-        bank_accounts_transactions(*)
+        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency, balance)
       `
       )
       .eq("id", accountId)
-      .order("bank_accounts_transactions.transaction_date", {
-        ascending: false,
-      })
       .single();
 
     if (error) {
-      console.error(
-        "Error fetching bank account with transactions:",
-        error.message
-      );
+      console.error("Error fetching bank account:", error.message);
       return null;
     }
 
@@ -298,11 +291,41 @@ export const fetchBankAccountWithTransactions = async (
       return null;
     }
 
+    // Now fetch transactions separately
+    const { data: transactionsData, error: transactionsError } = await supabase
+      .from("bank_accounts_transactions")
+      .select("*")
+      .eq("account_id", accountId)
+      .order("transaction_date", { ascending: false });
+
+    if (transactionsError) {
+      console.error(
+        `Error fetching transactions for bank account ${accountId}:`,
+        transactionsError.message
+      );
+      // Return account with empty transactions
+      return {
+        ...data,
+        account_type: data.account_type as AccountType,
+        institution_name: data.bank_accounts.institution_name,
+        account_number: data.bank_accounts.account_number,
+        routing_number: data.bank_accounts.routing_number,
+        currency: data.bank_accounts.currency,
+        balance: data.bank_accounts.balance,
+        transactions: [],
+      };
+    }
+
     // Restructure the data to match the expected BankAccountWithTransactions format
     const bankAccount: BankAccountWithTransactions = {
       ...data,
       account_type: data.account_type as AccountType,
-      transactions: data.bank_accounts_transactions as BankAccountTransaction[],
+      institution_name: data.bank_accounts.institution_name,
+      account_number: data.bank_accounts.account_number,
+      routing_number: data.bank_accounts.routing_number,
+      currency: data.bank_accounts.currency,
+      balance: data.bank_accounts.balance,
+      transactions: transactionsData as BankAccountTransaction[],
     };
 
     return bankAccount;
@@ -374,8 +397,10 @@ export const fetchBankAccountsWithTransactions = async (
         }
 
         // Execute the query with ordering
-        const { data: transactionsData, error: transactionsError } = await transactionsQuery
-          .order("transaction_date", { ascending: false });
+        const { data: transactionsData, error: transactionsError } =
+          await transactionsQuery.order("transaction_date", {
+            ascending: false,
+          });
 
         const { account_id, ...bankAccountWithoutId } = account.bank_accounts;
         const { bank_accounts, ...accountWithoutBankAccount } = account;

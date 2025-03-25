@@ -1,14 +1,11 @@
-import { useState } from "react";
-import {
-  CreateCryptoWallet,
-  createCryptoWallet,
-} from "@/database/CryptoWallets";
+import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useAccounts } from "@/contexts/AccountsContext";
 import { toast } from "@/hooks/use-toast";
-import { AccountType } from "@/types/Account";
+import { AccountType, CryptoWallet } from "@/types/Account";
 import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 // Define common cryptocurrencies for the dropdown
 const commonCoins = [
@@ -37,7 +34,7 @@ const commonCoins = [
 ];
 
 export default function CryptoWalletForm() {
-  const { refreshAccounts } = useAccounts();
+  const { addAccount } = useAccounts();
   const { getUserId } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -46,6 +43,8 @@ export default function CryptoWalletForm() {
     coin_symbol: "",
     balance: 0,
   });
+  const dialogCloseRef = useRef<HTMLButtonElement>(null);
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,7 +62,8 @@ export default function CryptoWalletForm() {
         return;
       }
 
-      const wallet: CreateCryptoWallet = {
+      const wallet = {
+        user_id: userId,
         account_type: AccountType.CRYPTO,
         account_name: formData.account_name,
         wallet_address: formData.wallet_address || undefined,
@@ -71,25 +71,17 @@ export default function CryptoWalletForm() {
         balance: formData.balance,
       };
 
-      console.log("wallet", wallet);
+      const result = await addAccount(wallet as CryptoWallet);
 
-      const walletId = await createCryptoWallet(userId, wallet);
-
-      if (walletId) {
+      if (result) {
         toast({
           title: "Success",
           description: "Crypto wallet added successfully",
         });
 
-        // Refresh accounts to update the UI
-        await refreshAccounts();
-
-        // Close the dialog using the DialogClose component
-        const closeButton = document.querySelector(
-          "[data-dialog-close]"
-        ) as HTMLButtonElement;
-        if (closeButton) {
-          closeButton.click();
+        // Close the dialog using the DialogClose ref
+        if (dialogCloseRef.current) {
+          dialogCloseRef.current.click();
         }
 
         // Reset form
@@ -99,6 +91,8 @@ export default function CryptoWalletForm() {
           coin_symbol: "",
           balance: 0,
         });
+
+        router.push(`/accounts/crypto/${result.id}`);
       } else {
         throw new Error("Failed to create wallet");
       }
