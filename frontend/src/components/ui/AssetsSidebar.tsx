@@ -1,30 +1,11 @@
 "use client";
 
 import { useAssets } from "@/contexts/AssetsContext";
-import {
-  useAccounts,
-  AccountWithTransactions,
-} from "@/contexts/AccountsContext";
+import { useAccounts, AccountWithTransactions } from "@/contexts/AccountsContext";
 import { Vehicle } from "@/types/Vehicle";
 import { RealEstate } from "@/types/RealEstate";
 import { PlusCircle, Coins, Home, Car, CircleDollarSign, Building2 } from "lucide-react";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuSub, SidebarMenuSubButton } from "./sidebar";
-import { useState, useEffect } from "react";
-import {
-  PlusCircle,
-  Coins,
-  Home,
-  Car,
-  CircleDollarSign,
-  Building2,
-} from "lucide-react";
-import {
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-} from "./sidebar";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -36,6 +17,7 @@ import CryptoWalletForm from "@/components/LinkedAccounts/CryptoWalletForm";
 import { AccountType } from "@/types/Account";
 import React from "react";
 import { AssetType } from "@/types/Asset";
+import InvestmentForm from "../Assets/InvestmentForm";
 
 const assetTypeIcons: Record<AssetType, React.ReactNode> = {
   [AssetType.VEHICLE]: <Car className="h-4 w-4" />,
@@ -104,13 +86,10 @@ export function AssetsSidebar() {
     type: "account",
     subtype: AccountType.BANK,
   });
-  const [enhancedAccounts, setEnhancedAccounts] = useState<EnhancedAccount[]>([]);
 
   // Split assets into vehicles and real estate
   const vehicles = assets.filter((asset): asset is Vehicle => "make" in asset);
-  const realEstate = assets.filter(
-    (asset): asset is RealEstate => "address" in asset
-  );
+  const realEstate = assets.filter((asset): asset is RealEstate => "address" in asset);
 
   const toggleSection = (type: AccountType | AssetType) => {
     setOpenSections((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]));
@@ -136,10 +115,6 @@ export function AssetsSidebar() {
     setDialogState((prev) => ({ ...prev, isOpen: false }));
   };
 
-  const groupedAccounts = Object.values(AccountType).reduce((acc, type) => {
-    acc[type] = enhancedAccounts.filter((account) => account.account_type === type);
-    return acc;
-  }, {} as Record<AccountType, EnhancedAccount[]>);
   // Get accounts of each type for display
   const getBankAccounts = () => {
     return Object.values(accounts[AccountType.BANK] || {});
@@ -222,45 +197,23 @@ export function AssetsSidebar() {
               {accountTypeIcons[AccountType.BANK]}
               <span>{accountTypeLabels[AccountType.BANK]}</span>
             </div>
-            <span className="text-xs text-muted-foreground">{groupedAccounts[AccountType.BANK].length}</span>
-            <span className="text-xs text-muted-foreground">
-              {bankAccounts.length}
-            </span>
+            <span className="text-xs text-muted-foreground">{bankAccounts.length}</span>
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.BANK) && (
             <SidebarMenuSub>
-              {groupedAccounts[AccountType.BANK].length === 0 ? (
-                <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.BANK)} className="italic text-muted-foreground">
               {bankAccounts.length === 0 ? (
-                <SidebarMenuSubButton
-                  onClick={() => handleAddAccount(AccountType.BANK)}
-                  className="italic text-muted-foreground"
-                >
+                <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.BANK)} className="italic text-muted-foreground">
                   <PlusCircle className="h-4 w-4" />
                   <span>Add Bank Account</span>
                 </SidebarMenuSubButton>
               ) : (
                 <React.Fragment>
-                  {groupedAccounts[AccountType.BANK].map((account) => (
-                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/${account.id}`)} className="py-2 h-auto">
                   {bankAccounts.map((account) => (
-                    <SidebarMenuSubButton
-                      key={account.id}
-                      onClick={() =>
-                        router.push(`/accounts/bank/${account.id}`)
-                      }
-                      className="py-2 h-auto"
-                    >
+                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/bank/${account.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
-                        <span className="leading-none">{account.bankDetails?.account_name || `Account ${account.id}`}</span>
+                        <span className="leading-none">{account.account_name || `Account ${account.id}`}</span>
                         <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(account.balance)}</span>
-                        <span className="leading-none">
-                          {account.account_name || `Account ${account.id}`}
-                        </span>
-                        <span className="text-xs text-muted-foreground leading-none">
-                          {formatTotalAmount(account.balance)}
-                        </span>
                       </div>
                     </SidebarMenuSubButton>
                   ))}
@@ -294,12 +247,7 @@ export function AssetsSidebar() {
               ) : (
                 <React.Fragment>
                   {vehicles.map((vehicle) => (
-                    <SidebarMenuSubButton key={vehicle.id} onClick={() => router.push(`/vehicles/${vehicle.id}`)} className="py-2 h-auto">
-                    <SidebarMenuSubButton
-                      key={vehicle.id}
-                      onClick={() => router.push(`/assets/${vehicle.id}`)}
-                      className="py-2 h-auto"
-                    >
+                    <SidebarMenuSubButton key={vehicle.id} onClick={() => router.push(`/assets/${vehicle.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
                         <span className="leading-none">
                           {vehicle.make} {vehicle.model} ({vehicle.year})
@@ -338,21 +286,12 @@ export function AssetsSidebar() {
               ) : (
                 <React.Fragment>
                   {realEstate.map((property) => (
-                    <SidebarMenuSubButton key={property.id} onClick={() => router.push(`/real-estate/${property.id}`)} className="py-2 h-auto">
-                    <SidebarMenuSubButton
-                      key={property.id}
-                      onClick={() => router.push(`/assets/${property.id}`)}
-                      className="py-2 h-auto"
-                    >
+                    <SidebarMenuSubButton key={property.id} onClick={() => router.push(`/assets/${property.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
                         <span className="leading-none">
-                          {formatPropertyType(property.property_type)}:{" "}
-                          {extractStreetAddress(property.address)}
+                          {formatPropertyType(property.property_type)}: {extractStreetAddress(property.address)}
                         </span>
-                        <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(property.current_value)}</span>
-                        <span className="text-xs text-muted-foreground leading-none">
-                          {formatTotalAmount(property.current_value || 0)}
-                        </span>
+                        <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(property.current_value || 0)}</span>
                       </div>
                     </SidebarMenuSubButton>
                   ))}
@@ -366,75 +305,42 @@ export function AssetsSidebar() {
           )}
         </SidebarMenuItem>
 
-        {/* Investment Accounts Section */}
+        {/* Investments Section */}
         <SidebarMenuItem>
           <SidebarMenuButton onClick={() => toggleSection(AccountType.INVESTMENT)} className="justify-between">
             <div className="flex items-center gap-2">
               {accountTypeIcons[AccountType.INVESTMENT]}
               <span>{accountTypeLabels[AccountType.INVESTMENT]}</span>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {investmentAccounts.length}
-            </span>
+            <span className="text-xs text-muted-foreground">{investmentAccounts.length}</span>
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.INVESTMENT) && (
             <SidebarMenuSub>
-              {groupedAccounts[AccountType.INVESTMENT]?.length === 0 ? (
-                <SidebarMenuSubButton onClick={() => router.push("/accounts/investments/new")} className="italic text-muted-foreground">
+              {investmentAccounts.length === 0 ? (
+                <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.INVESTMENT)} className="italic text-muted-foreground">
                   <PlusCircle className="h-4 w-4" />
                   <span>Add Investment Account</span>
                 </SidebarMenuSubButton>
               ) : (
-                <>
-                  {groupedAccounts[AccountType.INVESTMENT]?.map((account) => (
-                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/investments/${account.id}`)} className="py-2 h-auto">
+                <React.Fragment>
+                  {investmentAccounts.map((account) => (
+                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/investment/${account.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
-                        <span className="leading-none">{account.account_name || account.institution || `Account ${account.id}`}</span>
+                        <span className="leading-none">{account.account_name || `Account ${account.id}`}</span>
                         <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(account.balance)}</span>
                       </div>
                     </SidebarMenuSubButton>
                   ))}
                   <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.INVESTMENT)} className="italic text-muted-foreground">
                     <PlusCircle className="h-4 w-4" />
-                    <span>Add Investment Account</span>
+                    <span>Add Another Investment Account</span>
                   </SidebarMenuSubButton>
-                </>
+                </React.Fragment>
               )}
             </SidebarMenuSub>
           )}
         </SidebarMenuItem>
-
-        {/* Stocks Section */}
-        <SidebarMenuItem>
-          <SidebarMenuButton onClick={() => toggleSection(AssetType.STOCK)} className="justify-between">
-          <SidebarMenuButton
-            onClick={() => toggleSection(AccountType.INVESTMENT)}
-            className="justify-between"
-          >
-            <div className="flex items-center gap-2">
-              {accountTypeIcons[AccountType.INVESTMENT]}
-              <span>{accountTypeLabels[AccountType.INVESTMENT]}</span>
-            </div>
-            <span className="text-xs text-muted-foreground">
-              {0} {/* Placeholder for stocks count */}
-            </span>
-          </SidebarMenuButton>
-
-          {openSections.includes(AccountType.INVESTMENT) && (
-            <SidebarMenuSub>
-              <SidebarMenuSubButton onClick={() => handleAddAsset(AssetType.STOCK)} className="italic text-muted-foreground">
-              <SidebarMenuSubButton
-                onClick={() => handleAddAccount(AccountType.INVESTMENT)}
-                className="italic text-muted-foreground"
-              >
-                <PlusCircle className="h-4 w-4" />
-                <span>Add Stock</span>
-              </SidebarMenuSubButton>
-            </SidebarMenuSub>
-          )}
-        </SidebarMenuItem>
-
         {/* Cryptocurrencies Section */}
         <SidebarMenuItem>
           <SidebarMenuButton onClick={() => toggleSection(AccountType.CRYPTO)} className="justify-between">
@@ -442,19 +348,13 @@ export function AssetsSidebar() {
               {accountTypeIcons[AccountType.CRYPTO]}
               <span>{accountTypeLabels[AccountType.CRYPTO]}</span>
             </div>
-            <span className="text-xs text-muted-foreground">
-              {cryptoAccounts.length}
-            </span>
+            <span className="text-xs text-muted-foreground">{cryptoAccounts.length}</span>
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.CRYPTO) && (
             <SidebarMenuSub>
-              <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.CRYPTO)} className="italic text-muted-foreground">
               {cryptoAccounts.length === 0 ? (
-                <SidebarMenuSubButton
-                  onClick={() => handleAddAccount(AccountType.CRYPTO)}
-                  className="italic text-muted-foreground"
-                >
+                <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.CRYPTO)} className="italic text-muted-foreground">
                   <PlusCircle className="h-4 w-4" />
                   <span>Add Crypto Account</span>
                 </SidebarMenuSubButton>
@@ -462,36 +362,20 @@ export function AssetsSidebar() {
                 <React.Fragment>
                   {cryptoAccounts.length > 0 &&
                     cryptoAccounts.map((account) => (
-                      <SidebarMenuSubButton
-                        key={account.id}
-                        onClick={() =>
-                          router.push(`/accounts/crypto/${account.id}`)
-                        }
-                        className="py-2 h-auto"
-                      >
+                      <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/crypto/${account.id}`)} className="py-2 h-auto">
                         <div className="flex flex-col items-start gap-1 w-full">
-                          <span className="leading-none">
-                            {account.account_name || `Account ${account.id}`}
-                          </span>
-                          <span className="text-xs text-muted-foreground leading-none">
-                            {formatTotalAmount(account.balance)}
-                          </span>
+                          <span className="leading-none">{account.account_name || `Account ${account.id}`}</span>
+                          <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(account.balance)}</span>
                         </div>
                       </SidebarMenuSubButton>
                     ))}
-                  <SidebarMenuSubButton
-                    onClick={() => handleAddAccount(AccountType.CRYPTO)}
-                    className="italic text-muted-foreground"
-                  >
+                  <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.CRYPTO)} className="italic text-muted-foreground">
                     <PlusCircle className="h-4 w-4" />
                     <span>Add Another Crypto Account</span>
                   </SidebarMenuSubButton>
                 </React.Fragment>
               )}
-              <SidebarMenuSubButton
-                onClick={() => handleAddAccount(AccountType.CRYPTO)}
-                className="italic text-muted-foreground"
-              >
+              <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.CRYPTO)} className="italic text-muted-foreground">
                 <PlusCircle className="h-4 w-4" />
                 <span>Add Cryptocurrency</span>
               </SidebarMenuSubButton>
@@ -506,10 +390,7 @@ export function AssetsSidebar() {
               {accountTypeIcons[AccountType.CREDIT]}
               <span>{accountTypeLabels[AccountType.CREDIT]}</span>
             </div>
-            <span className="text-xs text-muted-foreground">{groupedAccounts[AccountType.CREDIT]?.length || 0}</span>
-            <span className="text-xs text-muted-foreground">
-              {creditAccounts.length}
-            </span>
+            <span className="text-xs text-muted-foreground">{creditAccounts.length}</span>
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.CREDIT) && (

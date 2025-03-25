@@ -1,28 +1,20 @@
 import { Metadata } from "next";
+import { fetchInvestmentAccounts } from "@/database/Investments";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
-import { fetchInvestmentAccountWithTransactions } from "@/database/Investments";
-import InvestmentDetails from "@/components/Assets/InvestmentDetails";
 import { Button } from "@/components/ui/button";
-import dynamic from "next/dynamic";
-import InvestmentTransactionTable from "@/components/TransactionTables/Investment/InvestmentTransactionTable";
-import { InvestmentTransaction } from "@/types/Investment";
-
-// Create a client component wrapper to handle passing the accountId
-const AddTransactionWrapper = dynamic(() => import("@/components/Assets/AddTransactionWrapper"), { ssr: false });
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { formatCurrency } from "@/lib/utils";
+import { InvestmentAccount } from "@/types/Investment";
+import NewInvestmentButton from "@/components/Assets/NewInvestmentButton";
 
 export const metadata: Metadata = {
-  title: "Investment Details | Oversight",
-  description: "View investment account details",
+  title: "Investments | Oversight",
+  description: "Manage your investment accounts",
 };
 
-interface InvestmentPageProps {
-  params: {
-    id: string;
-  };
-}
-
-export default async function InvestmentPage({ params }: InvestmentPageProps) {
+export default async function InvestmentsPage() {
   // Check if user is logged in using server supabase
   const supabase = await createClient();
   const {
@@ -31,34 +23,55 @@ export default async function InvestmentPage({ params }: InvestmentPageProps) {
   } = await supabase.auth.getUser();
 
   if (error || !user) {
-    redirect("/auth/login?redirectTo=/accounts/investments/" + params.id);
+    redirect("/auth/login?redirectTo=/accounts/investments");
   }
 
-  // Fetch investment account with transactions
-  const account = await fetchInvestmentAccountWithTransactions(params.id);
-
-  if (!account) {
-    redirect("/accounts/investments");
-  }
-
-  // Use transactions from the fetched account data
-  const transactions = account.transactions || [];
+  // Fetch user's investment accounts
+  const accounts: InvestmentAccount[] = await fetchInvestmentAccounts(user.id);
 
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold">{account.institution}</h1>
-          <p className="text-muted-foreground">{account.account_type}</p>
-        </div>
-        <div className="flex gap-4">
-          <AddTransactionWrapper accountId={params.id} />
+        <h1 className="text-2xl font-bold">Investment Accounts</h1>
+        <div className="flex justify-end mb-6">
+          <NewInvestmentButton />
         </div>
       </div>
 
-      <InvestmentDetails account={account} />
-
-      <InvestmentTransactionTable transactions={transactions} title="Investment Account Transactions" />
+      {accounts.length === 0 ? (
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold mb-4">No Investment Accounts</h2>
+          <p className="text-muted-foreground mb-8">Start tracking your investments by adding an account.</p>
+          <NewInvestmentButton />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {accounts.map((account: InvestmentAccount) => (
+            <Link key={account.account_id} href={`/accounts/investments/${account.account_id}`}>
+              <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="text-lg">{account.institution}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{account.account_type}</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Balance</p>
+                      <p className="text-lg font-semibold">{formatCurrency(account.balance, account.currency)}</p>
+                    </div>
+                    {account.contribution_room !== undefined && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Available Contribution Room</p>
+                        <p className="font-medium">{formatCurrency(account.contribution_room, account.currency)}</p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

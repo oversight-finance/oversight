@@ -3,6 +3,9 @@ import { Account, AccountType, InvestmentAccount, InvestmentAccountWithTransacti
 import { createAccountsCore, deleteAccountsCore } from "./Accounts";
 import { InvestmentTransaction } from "@/types";
 
+// Type aliases for better readability
+type InvestmentAccountData = Omit<InvestmentAccount, "account_id">;
+
 /**
  * Core implementation for fetching investment accounts by their account IDs
  * @param accountIds Array of account IDs to fetch investment accounts for
@@ -64,7 +67,7 @@ export const fetchInvestmentAccounts = async (accountIds: string[]): Promise<Map
  * @param investmentAccounts Array of investment account data to insert
  * @returns Array of created investment account IDs or null if creation failed
  */
-const createInvestmentAccountsCore = async (userId: string, investmentAccounts: InvestmentAccount[]): Promise<string[] | null> => {
+const createInvestmentAccountsCore = async (userId: string, investmentAccounts: InvestmentAccountData[]): Promise<string[] | null> => {
   if (!userId || !investmentAccounts.length) {
     console.error("Missing user ID or investment accounts for createInvestmentAccountsCore");
     return null;
@@ -73,12 +76,6 @@ const createInvestmentAccountsCore = async (userId: string, investmentAccounts: 
   try {
     const supabase = createClient();
 
-    // Create base accounts first
-    const baseAccounts = investmentAccounts.map((investmentAccount) => ({
-      user_id: userId,
-      account_type: AccountType.INVESTMENT, // Assuming these are stock/investment accounts
-      balance: investmentAccount.balance,
-    }));
     // Create base accounts first
     const baseAccounts = investmentAccounts.map((investmentAccount) => ({
       user_id: userId,
@@ -97,7 +94,7 @@ const createInvestmentAccountsCore = async (userId: string, investmentAccounts: 
     // Now create the investment accounts
     const investmentAccountsToInsert = accountsResult.map((account: Account, index: number) => ({
       account_id: account.id,
-      investment_type: investmentAccounts[index].investment_type,
+      account_type: investmentAccounts[index].account_type,
       institution: investmentAccounts[index].institution,
       account_number: investmentAccounts[index].account_number,
       contribution_room: investmentAccounts[index].contribution_room,
@@ -128,7 +125,7 @@ const createInvestmentAccountsCore = async (userId: string, investmentAccounts: 
  * @param investmentAccount The investment account data to insert
  * @returns The created investment account ID or null if creation failed
  */
-export const createInvestmentAccount = async (userId: string, investmentAccount: InvestmentAccount): Promise<string | null> => {
+export const createInvestmentAccount = async (userId: string, investmentAccount: InvestmentAccountData): Promise<string | null> => {
   if (!userId) {
     console.error("No user ID provided to createInvestmentAccount");
     return null;
@@ -144,7 +141,7 @@ export const createInvestmentAccount = async (userId: string, investmentAccount:
  * @param investmentAccounts Array of investment account data to insert
  * @returns Array of created investment account IDs or null if creation failed
  */
-export const createInvestmentAccountsBatch = async (userId: string, investmentAccounts: InvestmentAccount[]): Promise<string[] | null> => {
+export const createInvestmentAccountsBatch = async (userId: string, investmentAccounts: InvestmentAccountData[]): Promise<string[] | null> => {
   return await createInvestmentAccountsCore(userId, investmentAccounts);
 };
 
