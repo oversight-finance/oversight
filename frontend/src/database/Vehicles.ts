@@ -189,16 +189,16 @@ const createVehiclesCore = async (
         }
 
         // If requested, add price entries for vehicles with current_value
+        // TODO: Add price entries for vehicles with current_value
         if (addPriceEntries) {
             const priceEntries: VehiclePriceData[] = [];
             const today = new Date().toISOString().split("T")[0];
-
             // Create batched price entries
             for (let i = 0; i < vehicles.length; i++) {
                 if (vehicles[i].current_value !== undefined) {
                     priceEntries.push({
                         vehicle_id: data[i].id,
-                        price: vehicles[i].current_value,
+                        price: vehicles[i].current_value!, // Use non-null assertion since we've checked it's defined
                         price_date: today,
                     });
                 }

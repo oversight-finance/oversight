@@ -276,7 +276,7 @@ export const fetchBankAccountWithTransactions = async (
       .select(
         `
         *,
-        bank_accounts!inner(account_id, account_name, institution_name, account_number, routing_number, currency, balance),
+        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency, balance),
         bank_accounts_transactions(*)
       `
       )
@@ -337,7 +337,7 @@ export const fetchBankAccountsWithTransactions = async (
       .select(
         `
         *,
-        bank_accounts!inner(account_id, account_name, institution_name, account_number, routing_number, currency, balance)
+        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency, balance)
         `
       )
       .eq("user_id", user_id)

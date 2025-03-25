@@ -193,16 +193,17 @@ const createRealEstateCore = async (
             const priceEntries: RealEstatePriceData[] = [];
             const today = new Date().toISOString().split("T")[0];
 
-            // Create batched price entries
-            for (let i = 0; i < properties.length; i++) {
-                if (properties[i].current_value !== undefined) {
-                    priceEntries.push({
-                        real_estate_id: data[i].id,
-                        price: properties[i].current_value,
-                        price_date: today,
-                    });
-                }
-            }
+            // TODO: Add price entries for properties with current_value
+            // // Create batched price entries
+            // for (let i = 0; i < properties.length; i++) {
+            //     if (properties[i].current_value !== undefined) {
+            //         priceEntries.push({
+            //             real_estate_id: data[i].id,
+            //             price: properties[i].current_value ? properties[i].current_value : properties[i].purchase_price, 
+            //             price_date: today,
+            //         });
+            //     }
+            // }
 
             // If there are price entries to add, add them in batch
             if (priceEntries.length > 0) {

@@ -460,6 +460,43 @@ export function AssetsSidebar() {
 
           {openSections.includes(AccountType.CRYPTO) && (
             <SidebarMenuSub>
+              {cryptoAccounts.length === 0 ? (
+                <SidebarMenuSubButton
+                  onClick={() => handleAddAccount(AccountType.CRYPTO)}
+                  className="italic text-muted-foreground"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  <span>Add Crypto Account</span>
+                </SidebarMenuSubButton>
+              ) : (
+                <React.Fragment>
+                  {cryptoAccounts.length > 0 && cryptoAccounts.map((account) => (
+                    <SidebarMenuSubButton
+                      key={account.id}
+                      onClick={() =>
+                        router.push(`/accounts/crypto/${account.id}`)
+                      }
+                      className="py-2 h-auto"
+                    >
+                      <div className="flex flex-col items-start gap-1 w-full">
+                        <span className="leading-none">
+                          {account.account_name || `Account ${account.id}`}
+                        </span>
+                        <span className="text-xs text-muted-foreground leading-none">
+                          {formatTotalAmount(account.balance)}
+                        </span>
+                      </div>
+                    </SidebarMenuSubButton>
+                  ))}
+                  <SidebarMenuSubButton
+                    onClick={() => handleAddAccount(AccountType.CRYPTO)}
+                    className="italic text-muted-foreground"
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    <span>Add Another Crypto Account</span>
+                  </SidebarMenuSubButton>
+                </React.Fragment>
+              )}
               <SidebarMenuSubButton
                 onClick={() => handleAddAccount(AccountType.CRYPTO)}
                 className="italic text-muted-foreground"

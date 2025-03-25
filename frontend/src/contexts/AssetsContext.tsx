@@ -17,6 +17,7 @@ import {
   updateRealEstate,
   deleteRealEstate,
 } from "@/database/RealEstate";
+import { setErrorMap } from "zod";
 
 // Define a type that represents either a Vehicle or RealEstate
 export type Asset = Vehicle | RealEstate;
@@ -83,7 +84,7 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
   // Initialize with default assets
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const { getUserId } = useAuth(); // Get the getUserId method from AuthContext
+  const { getUserId, isLoading: isAuthLoading } = useAuth(); // Get the getUserId method from AuthContext
   const userId = getUserId(); // Store userId as a variable
 
   // Fetch assets on mount and when userId changes
@@ -94,8 +95,11 @@ export function AssetsProvider({ children }: { children: React.ReactNode }) {
   const refreshAssets = async () => {
     setIsLoading(true);
     try {
+      // Wait for auth context to be ready
+      if (isAuthLoading) {
+        return;
+      }
       if (!userId) {
-        console.error("No user ID available");
         setAssets([]);
         return;
       }

@@ -123,7 +123,7 @@ export default function SupabasePlayground() {
       cell: (value: any) => {
         return new Intl.NumberFormat('en-US', {
           style: 'currency',
-          currency: 'USD'
+          currency: 'CAD'
         }).format(value || 0);
       }
     },

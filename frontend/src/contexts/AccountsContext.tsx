@@ -18,6 +18,8 @@ import {
 // Export database functions directly so components can use them
 export * from "@/database/Accounts";
 export * from "@/database/Transactions";
+export * from "@/database/InvestmentAccounts";
+export * from "@/types/Account";
 
 // Create a union type for all transaction types
 export type Transaction =
@@ -39,7 +41,10 @@ export type AccountsContextType = {
 
   // Core actions
   refreshAccounts: () => Promise<void>;
-  getTransactions: (accountType: AccountType, accountId: string) => Transaction[];
+  getTransactions: (
+    accountType: AccountType,
+    accountId: string
+  ) => Transaction[];
   getAllTransactions: (accountType: AccountType) => Transaction[];
   getCombinedTransactions: () => Transaction[];
   getCombinedBalances: () => number;
@@ -64,7 +69,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       return { start: startDate, end: endDate };
     }
   );
-  const { getUserId } = useAuth();
+  const { getUserId, isLoading: isAuthLoading } = useAuth();
   const userId = getUserId();
 
   // Fetch accounts on mount
@@ -78,13 +83,17 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setError(null);
 
+      // Wait for auth context to be ready
+      if (isAuthLoading) {
+        return;
+      }
       if (!userId) {
         setError("User not authenticated");
         setIsLoading(false);
         return;
       }
 
-      let accounts: Record<
+      const accounts: Record<
         AccountType,
         Record<string, AccountWithTransactions>
       > = {

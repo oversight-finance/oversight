@@ -269,7 +269,7 @@ export const fetchCryptoWalletWithTransactions = async (
       .select(
         `
         *,
-        crypto_wallets!inner(account_id, wallet_name, wallet_address, coin_symbol, balance),
+        crypto_wallets!inner(account_id, wallet_address, coin_symbol, balance),
         crypto_wallet_transactions(*)
       `
       )
@@ -329,7 +329,7 @@ export const fetchCryptoWalletsWithTransactions = async (
       .select(
         `
         *,
-        crypto_wallets!inner(account_id, wallet_name, wallet_address, coin_symbol, balance)
+        crypto_wallets!inner(account_id, wallet_address, coin_symbol, balance)
         `
       )
       .eq("user_id", user_id)
