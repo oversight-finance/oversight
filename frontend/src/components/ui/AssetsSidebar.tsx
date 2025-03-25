@@ -6,7 +6,7 @@ import { Vehicle } from "@/types/Vehicle";
 import { RealEstate } from "@/types/RealEstate";
 import { PlusCircle, Coins, Home, Car, CircleDollarSign, Building2 } from "lucide-react";
 import { SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarMenuSub, SidebarMenuSubButton } from "./sidebar";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { formatTotalAmount } from "@/lib/utils";
@@ -16,11 +16,17 @@ import BankForm from "@/components/LinkedAccounts/BankForm";
 import CryptoWalletForm from "@/components/LinkedAccounts/CryptoWalletForm";
 import { AccountType } from "@/types/Account";
 import React from "react";
-import { AssetType } from "@/types/Asset";
 import InvestmentForm from "../Assets/InvestmentForm";
 
-const assetTypeIcons: Record<AssetType, React.ReactNode> = {
-  [AssetType.VEHICLE]: <Car className="h-4 w-4" />,
+// Define asset types as string literals
+export enum AssetType {
+  STOCK = "stock",
+  REAL_ESTATE = "real_estate",
+  VEHICLE = "vehicle",
+}
+
+const assetTypeIcons = {
+  [AssetType.STOCK]: <CircleDollarSign className="h-4 w-4" />,
   [AssetType.REAL_ESTATE]: <Home className="h-4 w-4" />,
 };
 
@@ -30,6 +36,8 @@ const accountTypeIcons: Record<AccountType, React.ReactNode> = {
   [AccountType.CRYPTO]: <Coins className="h-4 w-4" />,
   [AccountType.CREDIT]: <CircleDollarSign className="h-4 w-4" />,
   [AccountType.SAVINGS]: <Building2 className="h-4 w-4" />,
+  [AccountType.REAL_ESTATE]: <Home className="h-4 w-4" />,
+  [AccountType.VEHICLE]: <Car className="h-4 w-4" />,
 };
 
 const assetTypeLabels: Record<AssetType, string> = {
@@ -56,25 +64,12 @@ type DialogState = {
   subtype: AccountType | AssetType;
 };
 
-// Helper function to extract street address from full address
-const extractStreetAddress = (fullAddress: string): string => {
-  if (!fullAddress) return "No Address";
-
-  // Split by commas and take the first part (street address)
-  const parts = fullAddress.split(",");
-  return parts[0].trim();
-};
-
-// Helper function to format property type for display
-const formatPropertyType = (propertyType: string): string => {
-  if (!propertyType) return "Property";
-
-  // Convert snake_case to Title Case
-  return propertyType
-    .split("_")
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-};
+// Interface to track bank account details
+interface EnhancedAccount extends Account {
+  bankDetails?: BankAccount;
+  institution?: string;
+  account_name?: string;
+}
 
 export function AssetsSidebar() {
   const { assets } = useAssets();
@@ -86,10 +81,71 @@ export function AssetsSidebar() {
     type: "account",
     subtype: AccountType.BANK,
   });
+  const [enhancedAccounts, setEnhancedAccounts] = useState<EnhancedAccount[]>([]);
 
   // Split assets into vehicles and real estate
   const vehicles = assets.filter((asset): asset is Vehicle => "make" in asset);
   const realEstate = assets.filter((asset): asset is RealEstate => "address" in asset);
+
+  // Fetch additional details for bank and investment accounts
+  useEffect(() => {
+    const fetchAccountDetails = async () => {
+      if (accounts.length === 0) return;
+
+      // Initialize enhanced accounts
+      let enhanced = [...accounts];
+
+      // Filter bank accounts
+      const bankAccountIds = accounts.filter((account) => account.account_type === AccountType.BANK).map((account) => account.id);
+
+      // Fetch bank account details if any
+      if (bankAccountIds.length > 0) {
+        const bankAccountsMap = await fetchBankAccounts(bankAccountIds);
+
+        // Enhance accounts with bank details
+        enhanced = enhanced.map((account) => {
+          if (account.account_type === AccountType.BANK) {
+            return {
+              ...account,
+              bankDetails: bankAccountsMap.get(account.id),
+            };
+          }
+          return account;
+        });
+      }
+
+      // Filter investment accounts
+      const investmentAccountIds = accounts.filter((account) => account.account_type === AccountType.INVESTMENT).map((account) => account.id);
+
+      // Fetch investment account details if any
+      if (investmentAccountIds.length > 0) {
+        try {
+          // Import is inside useEffect to avoid circular dependencies
+          const { fetchInvestmentAccounts } = await import("@/database/InvestmentAccounts");
+          const investmentAccountsMap = await fetchInvestmentAccounts(investmentAccountIds);
+
+          // Enhance accounts with investment details
+          enhanced = enhanced.map((account) => {
+            if (account.account_type === AccountType.INVESTMENT) {
+              const investmentAccount = investmentAccountsMap.get(account.id);
+              return {
+                ...account,
+                institution: investmentAccount?.institution,
+                account_name: investmentAccount?.account_name,
+              };
+            }
+            return account;
+          });
+        } catch (error) {
+          console.error("Error fetching investment accounts:", error);
+        }
+      }
+
+      setEnhancedAccounts(enhanced);
+    };
+
+    fetchAccountDetails();
+  }, [accounts]);
 
   const toggleSection = (type: AccountType | AssetType) => {
     setOpenSections((prev) => (prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]));
@@ -115,22 +171,10 @@ export function AssetsSidebar() {
     setDialogState((prev) => ({ ...prev, isOpen: false }));
   };
 
-  // Get accounts of each type for display
-  const getBankAccounts = () => {
-    return Object.values(accounts[AccountType.BANK] || {});
-  };
-
-  const getInvestmentAccounts = () => {
-    return Object.values(accounts[AccountType.INVESTMENT] || {});
-  };
-
-  const getCryptoAccounts = () => {
-    return Object.values(accounts[AccountType.CRYPTO] || {});
-  };
-
-  const getCreditAccounts = () => {
-    return Object.values(accounts[AccountType.CREDIT] || {});
-  };
+  const groupedAccounts = Object.values(AccountType).reduce((acc, type) => {
+    acc[type] = enhancedAccounts.filter((account) => account.account_type === type);
+    return acc;
+  }, {} as Record<AccountType, EnhancedAccount[]>);
 
   // Function to render the appropriate form based on asset/account type
   const renderForm = () => {
@@ -197,22 +241,22 @@ export function AssetsSidebar() {
               {accountTypeIcons[AccountType.BANK]}
               <span>{accountTypeLabels[AccountType.BANK]}</span>
             </div>
-            <span className="text-xs text-muted-foreground">{bankAccounts.length}</span>
+            <span className="text-xs text-muted-foreground">{groupedAccounts[AccountType.BANK].length}</span>
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.BANK) && (
             <SidebarMenuSub>
-              {bankAccounts.length === 0 ? (
+              {groupedAccounts[AccountType.BANK].length === 0 ? (
                 <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.BANK)} className="italic text-muted-foreground">
                   <PlusCircle className="h-4 w-4" />
                   <span>Add Bank Account</span>
                 </SidebarMenuSubButton>
               ) : (
                 <React.Fragment>
-                  {bankAccounts.map((account) => (
-                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/bank/${account.id}`)} className="py-2 h-auto">
+                  {groupedAccounts[AccountType.BANK].map((account) => (
+                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/${account.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
-                        <span className="leading-none">{account.account_name || `Account ${account.id}`}</span>
+                        <span className="leading-none">{account.bankDetails?.account_name || `Account ${account.id}`}</span>
                         <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(account.balance)}</span>
                       </div>
                     </SidebarMenuSubButton>
@@ -247,7 +291,7 @@ export function AssetsSidebar() {
               ) : (
                 <React.Fragment>
                   {vehicles.map((vehicle) => (
-                    <SidebarMenuSubButton key={vehicle.id} onClick={() => router.push(`/assets/${vehicle.id}`)} className="py-2 h-auto">
+                    <SidebarMenuSubButton key={vehicle.id} onClick={() => router.push(`/vehicles/${vehicle.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
                         <span className="leading-none">
                           {vehicle.make} {vehicle.model} ({vehicle.year})
@@ -286,12 +330,12 @@ export function AssetsSidebar() {
               ) : (
                 <React.Fragment>
                   {realEstate.map((property) => (
-                    <SidebarMenuSubButton key={property.id} onClick={() => router.push(`/assets/${property.id}`)} className="py-2 h-auto">
+                    <SidebarMenuSubButton key={property.id} onClick={() => router.push(`/real-estate/${property.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
                         <span className="leading-none">
                           {formatPropertyType(property.property_type)}: {extractStreetAddress(property.address)}
                         </span>
-                        <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(property.current_value || 0)}</span>
+                        <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(property.current_value)}</span>
                       </div>
                     </SidebarMenuSubButton>
                   ))}
@@ -305,39 +349,61 @@ export function AssetsSidebar() {
           )}
         </SidebarMenuItem>
 
-        {/* Investments Section */}
+        {/* Investment Accounts Section */}
         <SidebarMenuItem>
           <SidebarMenuButton onClick={() => toggleSection(AccountType.INVESTMENT)} className="justify-between">
             <div className="flex items-center gap-2">
               {accountTypeIcons[AccountType.INVESTMENT]}
               <span>{accountTypeLabels[AccountType.INVESTMENT]}</span>
             </div>
-            <span className="text-xs text-muted-foreground">{investmentAccounts.length}</span>
+            <span className="text-xs text-muted-foreground">{groupedAccounts[AccountType.INVESTMENT]?.length || 0}</span>
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.INVESTMENT) && (
             <SidebarMenuSub>
-              {investmentAccounts.length === 0 ? (
-                <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.INVESTMENT)} className="italic text-muted-foreground">
+              {groupedAccounts[AccountType.INVESTMENT]?.length === 0 ? (
+                <SidebarMenuSubButton onClick={() => router.push("/accounts/investments/new")} className="italic text-muted-foreground">
                   <PlusCircle className="h-4 w-4" />
                   <span>Add Investment Account</span>
                 </SidebarMenuSubButton>
               ) : (
-                <React.Fragment>
-                  {investmentAccounts.map((account) => (
-                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/investment/${account.id}`)} className="py-2 h-auto">
+                <>
+                  {groupedAccounts[AccountType.INVESTMENT]?.map((account) => (
+                    <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/investments/${account.id}`)} className="py-2 h-auto">
                       <div className="flex flex-col items-start gap-1 w-full">
-                        <span className="leading-none">{account.account_name || `Account ${account.id}`}</span>
+                        <span className="leading-none">{account.account_name || account.institution || `Account ${account.id}`}</span>
                         <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(account.balance)}</span>
                       </div>
                     </SidebarMenuSubButton>
                   ))}
                   <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.INVESTMENT)} className="italic text-muted-foreground">
                     <PlusCircle className="h-4 w-4" />
-                    <span>Add Another Investment Account</span>
+                    <span>Add Investment Account</span>
                   </SidebarMenuSubButton>
-                </React.Fragment>
+                </>
               )}
+            </SidebarMenuSub>
+          )}
+        </SidebarMenuItem>
+
+        {/* Stocks Section */}
+        <SidebarMenuItem>
+          <SidebarMenuButton onClick={() => toggleSection(AssetType.STOCK)} className="justify-between">
+            <div className="flex items-center gap-2">
+              {assetTypeIcons[AssetType.STOCK]}
+              <span>{assetTypeLabels[AssetType.STOCK]}</span>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {0} {/* Placeholder for stocks count */}
+            </span>
+          </SidebarMenuButton>
+
+          {openSections.includes(AssetType.STOCK) && (
+            <SidebarMenuSub>
+              <SidebarMenuSubButton onClick={() => handleAddAsset(AssetType.STOCK)} className="italic text-muted-foreground">
+                <PlusCircle className="h-4 w-4" />
+                <span>Add Stock</span>
+              </SidebarMenuSubButton>
             </SidebarMenuSub>
           )}
         </SidebarMenuItem>
@@ -353,28 +419,6 @@ export function AssetsSidebar() {
 
           {openSections.includes(AccountType.CRYPTO) && (
             <SidebarMenuSub>
-              {cryptoAccounts.length === 0 ? (
-                <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.CRYPTO)} className="italic text-muted-foreground">
-                  <PlusCircle className="h-4 w-4" />
-                  <span>Add Crypto Account</span>
-                </SidebarMenuSubButton>
-              ) : (
-                <React.Fragment>
-                  {cryptoAccounts.length > 0 &&
-                    cryptoAccounts.map((account) => (
-                      <SidebarMenuSubButton key={account.id} onClick={() => router.push(`/accounts/crypto/${account.id}`)} className="py-2 h-auto">
-                        <div className="flex flex-col items-start gap-1 w-full">
-                          <span className="leading-none">{account.account_name || `Account ${account.id}`}</span>
-                          <span className="text-xs text-muted-foreground leading-none">{formatTotalAmount(account.balance)}</span>
-                        </div>
-                      </SidebarMenuSubButton>
-                    ))}
-                  <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.CRYPTO)} className="italic text-muted-foreground">
-                    <PlusCircle className="h-4 w-4" />
-                    <span>Add Another Crypto Account</span>
-                  </SidebarMenuSubButton>
-                </React.Fragment>
-              )}
               <SidebarMenuSubButton onClick={() => handleAddAccount(AccountType.CRYPTO)} className="italic text-muted-foreground">
                 <PlusCircle className="h-4 w-4" />
                 <span>Add Cryptocurrency</span>
@@ -390,7 +434,7 @@ export function AssetsSidebar() {
               {accountTypeIcons[AccountType.CREDIT]}
               <span>{accountTypeLabels[AccountType.CREDIT]}</span>
             </div>
-            <span className="text-xs text-muted-foreground">{creditAccounts.length}</span>
+            <span className="text-xs text-muted-foreground">{groupedAccounts[AccountType.CREDIT]?.length || 0}</span>
           </SidebarMenuButton>
 
           {openSections.includes(AccountType.CREDIT) && (
