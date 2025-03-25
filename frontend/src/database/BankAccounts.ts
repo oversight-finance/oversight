@@ -122,7 +122,6 @@ const createBankAccountsCore = async (
         account_number: bankAccounts[index].account_number,
         routing_number: bankAccounts[index].routing_number,
         currency: bankAccounts[index].currency,
-        balance: bankAccounts[index].balance, // Keep the balance as provided, don't modify it
       })
     );
 
@@ -276,7 +275,7 @@ export const fetchBankAccountWithTransactions = async (
       .select(
         `
         *,
-        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency, balance)
+        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency)
       `
       )
       .eq("id", accountId)
@@ -311,7 +310,6 @@ export const fetchBankAccountWithTransactions = async (
         account_number: data.bank_accounts.account_number,
         routing_number: data.bank_accounts.routing_number,
         currency: data.bank_accounts.currency,
-        balance: data.bank_accounts.balance,
         transactions: [],
       };
     }
@@ -324,7 +322,6 @@ export const fetchBankAccountWithTransactions = async (
       account_number: data.bank_accounts.account_number,
       routing_number: data.bank_accounts.routing_number,
       currency: data.bank_accounts.currency,
-      balance: data.bank_accounts.balance,
       transactions: transactionsData as BankAccountTransaction[],
     };
 
@@ -360,7 +357,7 @@ export const fetchBankAccountsWithTransactions = async (
       .select(
         `
         *,
-        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency, balance)
+        bank_accounts!inner(account_id, institution_name, account_number, routing_number, currency)
         `
       )
       .eq("user_id", user_id)

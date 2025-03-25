@@ -114,7 +114,6 @@ const createCryptoWalletsCore = async (
       (account: Account, index: number) => ({
         account_id: account.id,
         wallet_address: cryptoWallets[index].wallet_address,
-        balance: cryptoWallets[index].balance,
         coin_symbol: cryptoWallets[index].coin_symbol,
       })
     );
@@ -273,7 +272,7 @@ export const fetchCryptoWalletWithTransactions = async (
       .select(
         `
         *,
-        crypto_wallets!inner(account_id, wallet_address, coin_symbol, balance)
+        crypto_wallets!inner(account_id, wallet_address, coin_symbol)
       `
       )
       .eq("id", accountId)
@@ -306,7 +305,6 @@ export const fetchCryptoWalletWithTransactions = async (
         account_type: data.account_type as AccountType,
         wallet_address: data.crypto_wallets.wallet_address,
         coin_symbol: data.crypto_wallets.coin_symbol,
-        balance: data.crypto_wallets.balance,
         transactions: [],
       };
     }
@@ -319,7 +317,6 @@ export const fetchCryptoWalletWithTransactions = async (
       account_type: data.account_type as AccountType,
       wallet_address: data.crypto_wallets.wallet_address,
       coin_symbol: data.crypto_wallets.coin_symbol,
-      balance: data.crypto_wallets.balance,
       transactions: transactionsData as CryptoWalletTransaction[],
     };
 
@@ -356,7 +353,7 @@ export const fetchCryptoWalletsWithTransactions = async (
       .select(
         `
         *,
-        crypto_wallets!inner(account_id, wallet_address, coin_symbol, balance)
+        crypto_wallets!inner(account_id, wallet_address, coin_symbol)
         `
       )
       .eq("user_id", user_id)

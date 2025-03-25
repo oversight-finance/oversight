@@ -10,6 +10,10 @@ import { InvestmentTransaction } from "@/types";
 
 // Type aliases for better readability
 type InvestmentAccountData = Omit<InvestmentAccount, "account_id">;
+export type CreateInvestmentAccount = Omit<
+  InvestmentAccount,
+  "account_id" | "id" | "user_id" | "created_at" | "updated_at"
+>;
 
 /**
  * Core implementation for fetching investment accounts by their account IDs
@@ -86,7 +90,7 @@ export const fetchInvestmentAccounts = async (
  */
 const createInvestmentAccountsCore = async (
   userId: string,
-  investmentAccounts: InvestmentAccountData[]
+  investmentAccounts: CreateInvestmentAccount[]
 ): Promise<string[] | null> => {
   if (!userId || !investmentAccounts.length) {
     console.error(
@@ -102,7 +106,7 @@ const createInvestmentAccountsCore = async (
     const baseAccounts = investmentAccounts.map((investmentAccount) => ({
       user_id: userId,
       account_name: investmentAccount.account_name,
-      account_type: AccountType.INVESTMENT, // Assuming these are stock/investment accounts
+      account_type: AccountType.INVESTMENT,
       balance: investmentAccount.balance,
     }));
 
@@ -121,7 +125,6 @@ const createInvestmentAccountsCore = async (
         institution: investmentAccounts[index].institution,
         account_number: investmentAccounts[index].account_number,
         contribution_room: investmentAccounts[index].contribution_room,
-        balance: investmentAccounts[index].balance,
         currency: investmentAccounts[index].currency,
       })
     );
@@ -158,7 +161,7 @@ const createInvestmentAccountsCore = async (
  */
 export const createInvestmentAccount = async (
   userId: string,
-  investmentAccount: InvestmentAccountData
+  investmentAccount: CreateInvestmentAccount
 ): Promise<string | null> => {
   if (!userId) {
     console.error("No user ID provided to createInvestmentAccount");
@@ -180,7 +183,7 @@ export const createInvestmentAccount = async (
  */
 export const createInvestmentAccountsBatch = async (
   userId: string,
-  investmentAccounts: InvestmentAccountData[]
+  investmentAccounts: CreateInvestmentAccount[]
 ): Promise<string[] | null> => {
   return await createInvestmentAccountsCore(userId, investmentAccounts);
 };
@@ -284,7 +287,7 @@ export const fetchInvestmentAccountWithTransactions = async (
       .select(
         `
         *,
-        investment_accounts!inner(account_id, investment_type, institution, account_number, contribution_room, balance, currency)
+        investment_accounts!inner(account_id, investment_type, institution, account_number, contribution_room, currency)
       `
       )
       .eq("id", accountId)
@@ -372,7 +375,7 @@ export const fetchInvestmentAccountsWithTransactions = async (
       .select(
         `
         *,
-        investment_accounts!inner(account_id, investment_type, institution, account_number, contribution_room, balance, currency)
+        investment_accounts!inner(account_id, investment_type, institution, account_number, contribution_room, currency)
         `
       )
       .eq("user_id", user_id)

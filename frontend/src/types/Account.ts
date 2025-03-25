@@ -45,7 +45,6 @@ export type BankAccount = Account & {
 export type CryptoWallet = Account & {
   wallet_address?: string;
   coin_symbol: string; // e.g., 'BTC', 'ETH', 'SOL'
-  balance: number;
 };
 
 /**
@@ -56,7 +55,6 @@ export type InvestmentAccount = Account & {
   institution: string;
   account_number?: string;
   contribution_room?: number;
-  balance: number;
   currency: string;
 };
 
