@@ -1,6 +1,7 @@
 import { createClient } from "@/utils/supabase/client";
 import { Account, AccountType, CryptoWallet } from "@/types/Account";
 import { createAccountsCore, deleteAccountsCore } from "./Accounts";
+import { CryptoWalletTransaction } from "@/types";
 
 // Type aliases for better readability
 type CryptoWalletData = Omit<CryptoWallet, "account_id">;
@@ -96,6 +97,7 @@ const createCryptoWalletsCore = async (
     // Create base accounts first
     const baseAccounts = cryptoWallets.map((cryptoWallet) => ({
       user_id: userId,
+      account_name: cryptoWallet.account_name,
       account_type: AccountType.CRYPTO,
       balance: cryptoWallet.balance,
     }));
@@ -111,7 +113,6 @@ const createCryptoWalletsCore = async (
     const cryptoWalletsToInsert = accountsResult.map(
       (account: Account, index: number) => ({
         account_id: account.id,
-        wallet_name: cryptoWallets[index].wallet_name,
         wallet_address: cryptoWallets[index].wallet_address,
         balance: cryptoWallets[index].balance,
         coin_symbol: cryptoWallets[index].coin_symbol,
@@ -245,4 +246,162 @@ export const updateCryptoWalletsBatch = async (
   updates: Partial<CryptoWallet>
 ): Promise<Map<string, boolean>> => {
   return await updateCryptoWalletsCore(accountIds, updates);
+};
+
+/**
+ * Fetches a crypto wallet account with its transactions
+ * @param accountId The account_id of the crypto wallet account
+ * @returns The crypto wallet with transactions or null if not found
+ */
+export const fetchCryptoWalletWithTransactions = async (
+  accountId: string
+): Promise<CryptoWallet & { transactions: CryptoWalletTransaction[] } | null> => {
+  if (!accountId) {
+    console.error("No account ID provided to fetchCryptoWalletWithTransactions");
+    return null;
+  }
+  try {
+    const supabase = createClient();
+
+    // Fetch the account and its transactions in a single query with a join
+    const { data, error } = await supabase
+      .from("accounts")
+      .select(
+        `
+        *,
+        crypto_wallets!inner(account_id, wallet_name, wallet_address, coin_symbol, balance),
+        crypto_wallet_transactions(*)
+      `
+      )
+      .eq("id", accountId)
+      .order("crypto_wallet_transactions.transaction_date", {
+        ascending: false,
+      })
+      .single();
+
+    if (error) {
+      console.error(
+        "Error fetching crypto wallet with transactions:",
+        error.message
+      );
+      return null;
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    // Restructure the data to match the expected CryptoWallet with transactions format
+    const cryptoWallet: CryptoWallet & { transactions: CryptoWalletTransaction[] } = {
+      ...data,
+      account_type: data.account_type as AccountType,
+      transactions: data.crypto_wallet_transactions as CryptoWalletTransaction[],
+    };
+
+    return cryptoWallet;
+  } catch (error) {
+    console.error("Exception fetching crypto wallet with transactions:", error);
+    return null;
+  }
+};
+
+/**
+ * Fetches a list of crypto wallets with their transactions
+ * @param user_id The user_id of the owner of the crypto wallets
+ * @param dateRange Optional date range to filter transactions (format: { start: Date, end: Date })
+ * @returns The crypto wallets and their transactions or empty object if not found
+ */
+export const fetchCryptoWalletsWithTransactions = async (
+  user_id: string,
+  dateRange?: { start: Date; end: Date }
+): Promise<Record<string, CryptoWallet & { transactions: CryptoWalletTransaction[] }>> => {
+  const supabase = createClient();
+
+  if (!user_id) {
+    console.error("No user ID provided to fetchCryptoWalletsWithTransactions");
+    return {};
+  }
+
+  try {
+    // First, fetch all crypto wallets for the user
+    const { data: accountsData, error: accountsError } = await supabase
+      .from("accounts")
+      .select(
+        `
+        *,
+        crypto_wallets!inner(account_id, wallet_name, wallet_address, coin_symbol, balance)
+        `
+      )
+      .eq("user_id", user_id)
+      .eq("account_type", AccountType.CRYPTO);
+
+    if (accountsError) {
+      console.error("Error fetching crypto wallets:", accountsError.message);
+      return {};
+    }
+
+    if (!accountsData || accountsData.length === 0) {
+      return {};
+    }
+
+    // For each account, fetch its transactions and combine the data
+    const accountsWithTransactions = await Promise.all(
+      accountsData.map(async (account) => {
+        // Start building the query
+        let transactionsQuery = supabase
+          .from("crypto_wallet_transactions")
+          .select("*")
+          .eq("account_id", account.id);
+
+        // Apply date range filter if provided
+        if (dateRange) {
+          transactionsQuery = transactionsQuery
+            .gte("transaction_date", dateRange.start.toISOString())
+            .lte("transaction_date", dateRange.end.toISOString());
+        }
+
+        // Execute the query with ordering
+        const { data: transactionsData, error: transactionsError } = await transactionsQuery
+          .order("transaction_date", { ascending: false });
+
+        const { account_id, ...cryptoWalletWithoutId } = account.crypto_wallets;
+        const { crypto_wallets, ...accountWithoutCryptoWallet } = account;
+
+        if (transactionsError) {
+          console.error(
+            `Error fetching transactions for account ${account.id}:`,
+            transactionsError.message
+          );
+
+          // If there's an error fetching transactions, we'll still return the account
+          // but with an empty transactions array
+          return {
+            ...accountWithoutCryptoWallet,
+            ...cryptoWalletWithoutId,
+            account_type: account.account_type as AccountType,
+            transactions: [],
+          };
+        }
+
+        // Combine account data with transactions
+        return {
+          ...accountWithoutCryptoWallet,
+          ...cryptoWalletWithoutId,
+          account_type: account.account_type as AccountType,
+          transactions: transactionsData as CryptoWalletTransaction[],
+        };
+      })
+    );
+
+    // Convert array to Record<string, CryptoWallet & { transactions: CryptoWalletTransaction[] }>
+    const accountsRecord: Record<string, CryptoWallet & { transactions: CryptoWalletTransaction[] }> = {};
+    for (const account of accountsWithTransactions) {
+      accountsRecord[account.id] = account as CryptoWallet & { transactions: CryptoWalletTransaction[] };
+    }
+
+    return accountsRecord;
+  } catch (error) {
+    console.error("Exception fetching crypto wallets with transactions:", error);
+    return {};
+  }
 };

@@ -1,6 +1,6 @@
 // Account-related type definitions that match the database schema
 
-import { BankAccountTransaction } from "@/types/Transaction";
+import { BankAccountTransaction, InvestmentTransaction, CryptoWalletTransaction } from "@/types/Transaction";
 
 /**
  * Aligns with the account_type enum in the database
@@ -13,11 +13,14 @@ export enum AccountType {
   SAVINGS = "savings",
 }
 
+export type Accounts = BankAccount | CryptoWallet | InvestmentAccount;
+
 /**
  * Base account type matching accounts table
  */
 export type Account = {
   id: string;
+  account_name: string;
   user_id: string;
   account_type: AccountType;
   balance: number;
@@ -30,7 +33,6 @@ export type Account = {
  * Extends the base Account type
  */
 export type BankAccount = Account & {
-  account_name: string;
   institution_name: string;
   account_number: string;
   routing_number: string;
@@ -41,7 +43,6 @@ export type BankAccount = Account & {
  * Crypto wallet type matching crypto_wallets table
  */
 export type CryptoWallet = Account & {
-  wallet_name: string;
   wallet_address?: string;
   coin_symbol: string; // e.g., 'BTC', 'ETH', 'SOL'
   balance: number;
@@ -71,8 +72,16 @@ export enum BankAccountType {
 /**
  * Extended account type with transactions for UI components
  */
-export type BankAccountWithTransactions = Account & {
+export type BankAccountWithTransactions = BankAccount & {
   transactions: BankAccountTransaction[];
+};
+
+export type InvestmentAccountWithTransactions = InvestmentAccount & {
+  transactions: InvestmentTransaction[];
+};
+
+export type CryptoWalletWithTransactions = CryptoWallet & {
+  transactions: CryptoWalletTransaction[];
 };
 
 /**

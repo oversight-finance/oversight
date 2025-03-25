@@ -2,8 +2,6 @@
 export enum AssetType {
     VEHICLE = "vehicle",
     REAL_ESTATE = "real_estate",
-    CRYPTO = "crypto",
-    STOCK = "stock",
 }
 
 // Export the types from other files for convenience
