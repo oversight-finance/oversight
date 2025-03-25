@@ -47,18 +47,7 @@ const formatLargeNumber = (value: number) => {
 
 const formatAxisDate = (date: Date, data: BalanceDataPoint[]) => {
   if (!data || data.length === 0) return "";
-  const firstDate = data[0].date;
-  const lastDate = data[data.length - 1].date;
-  const monthsDiff =
-    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
-    lastDate.getMonth() -
-    firstDate.getMonth();
-
-  if (monthsDiff > 12) {
-    return date.toLocaleString("default", { month: "short", year: "numeric" });
-  } else {
-    return date.toLocaleString("default", { month: "short" });
-  }
+  return date.toLocaleString("default", { month: "short", day: "numeric" });
 };
 
 export default function AccountBalance({ account }: AccountBalanceProps) {
