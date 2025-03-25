@@ -55,7 +55,7 @@ const accountTypeIcons: Record<AccountType, React.ReactNode> = {
 
 const assetTypeLabels: Record<AssetType, string> = {
   [AssetType.VEHICLE]: "Vehicles",
-  [AssetType.REAL_ESTATE]: "Real Estate",
+  [AssetType.REAL_ESTATE]: "Real Estate ",
 };
 
 // Create account type labels dynamically from enum

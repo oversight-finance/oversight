@@ -22,9 +22,14 @@ import CreateAssetMessage from "@/components/CreateAssetMessage/CreateAssetMessa
 import MonthlyGraph from "@/components/MonthlyGraph/MonthlyGraph";
 import { calculateAssetGrowth } from "../assets/[id]/components/utils";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBudgetsByUserId } from "@/database/Budgets";
+import { Budget, stringToCategories, BudgetFrequency } from "@/types/Budgets";
+import { Progress } from "@/components/ui/progress";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 // Define the TimeRange type
 type TimeRange = "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL";
@@ -67,6 +72,8 @@ export default function Dashboard() {
   const userId = getUserId();
   const [networthData, setNetworthData] = useState<NetWorthDataPoint[]>([]);
   const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>("1Y");
+  const [budgets, setBudgets] = useState<Budget[]>([]);
+  const [loadingBudgets, setLoadingBudgets] = useState(true);
 
   // Get number of months for the selected time range
   const getTimeRangeMonths = (range: TimeRange): number => {
@@ -443,6 +450,122 @@ export default function Dashboard() {
     setNetworthData(filteredPoints);
   };
 
+  // Calculate spent amount for a budget
+  const calculateSpent = (budget: Budget) => {
+    const allTransactions = getCombinedTransactions();
+    // Filter for bank transactions only
+    const transactions = allTransactions.filter(
+      (tx) =>
+        // Check for bank transactions based on object properties
+        "account_id" in tx && !("wallet_id" in tx)
+    );
+    const categories = stringToCategories(budget.category);
+
+    // Filter transactions by category and time period
+    const filteredTransactions = transactions.filter((tx) => {
+      const txDate = new Date(tx.transaction_date);
+      const now = new Date();
+
+      // Match category - handle different transaction types
+      let txCategory = "";
+      if ("category" in tx) {
+        txCategory = tx.category as string;
+      } else if ("merchant" in tx) {
+        // Use merchant as fallback for transactions that don't have category
+        txCategory = tx.merchant as string;
+      } else {
+        return false;
+      }
+
+      // Check if any of the budget categories matches the transaction category
+      const categoryMatch = categories.some((cat) =>
+        txCategory.toLowerCase().includes(cat.toLowerCase())
+      );
+
+      if (!categoryMatch) return false;
+
+      // Check if transaction is within the current budget period
+      switch (budget.frequency) {
+        case BudgetFrequency.DAILY:
+          return txDate.toDateString() === now.toDateString();
+        case BudgetFrequency.WEEKLY:
+          const weekStart = new Date(now);
+          weekStart.setDate(now.getDate() - now.getDay());
+          return txDate >= weekStart;
+        case BudgetFrequency.MONTHLY:
+          return (
+            txDate.getMonth() === now.getMonth() &&
+            txDate.getFullYear() === now.getFullYear()
+          );
+        case BudgetFrequency.YEARLY:
+          return txDate.getFullYear() === now.getFullYear();
+        default:
+          return false;
+      }
+    });
+
+    // Sum up the transaction amounts (use absolute value to count spending)
+    return filteredTransactions.reduce(
+      (sum, tx) => sum + Math.abs(tx.amount),
+      0
+    );
+  };
+
+  // Calculate progress percentage
+  const calculateProgress = (budget: Budget) => {
+    const spent = calculateSpent(budget);
+    return Math.min(100, (spent / budget.budget_amount) * 100);
+  };
+
+  // Format currency
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-CA", {
+      style: "currency",
+      currency: "CAD",
+    }).format(amount);
+  };
+
+  // Get friendly display of categories
+  const displayCategories = (categoriesString: string) => {
+    const categories = stringToCategories(categoriesString);
+    if (categories.length === 0) return null;
+
+    return (
+      <div className="flex flex-wrap gap-1 items-center">
+        {categories.map((cat) => (
+          <Badge
+            key={cat}
+            variant="secondary"
+            className="text-xs py-0.5 px-2 max-h-5"
+          >
+            {cat}
+          </Badge>
+        ))}
+      </div>
+    );
+  };
+
+  // Fetch budgets
+  useEffect(() => {
+    const fetchBudgets = async () => {
+      try {
+        setLoadingBudgets(true);
+        const userId = getUserId();
+
+        if (!userId) return;
+
+        const fetchedBudgets = await getBudgetsByUserId(userId);
+        setBudgets(fetchedBudgets);
+      } catch (error) {
+        console.error("Error fetching budgets:", error);
+      } finally {
+        setLoadingBudgets(false);
+      }
+    };
+
+    fetchBudgets();
+  }, [getUserId]);
+
   // Use useEffect to recalculate networth when accounts, assets, or time range changes
   useEffect(() => {
     calculateNetworth();
@@ -456,6 +579,11 @@ export default function Dashboard() {
     Object.keys(accounts).length === 0 &&
     Object.keys(assets).length === 0 &&
     userId;
+
+  // Filter budgets that are above 50% progress
+  const highProgressBudgets = budgets.filter(
+    (budget) => calculateProgress(budget) >= 50
+  );
 
   return (
     <div className="flex min-h-screen w-full">
@@ -544,6 +672,96 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
+
+              {/* High Progress Budgets Section */}
+              {!loadingBudgets && highProgressBudgets.length > 0 && (
+                <Card>
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center">
+                      <AlertCircle className="mr-2 h-5 w-5 text-amber-500" />
+                      <CardTitle className="text-xl">
+                        Budgets to Watch
+                      </CardTitle>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {highProgressBudgets.map((budget) => {
+                        const spent = calculateSpent(budget);
+                        const progress = calculateProgress(budget);
+                        const remaining = budget.budget_amount - spent;
+                        const isOverBudget = remaining < 0;
+
+                        return (
+                          <div
+                            key={budget.id}
+                            className="p-3 border rounded-lg w-full"
+                          >
+                            <div className="flex flex-col gap-2">
+                              <div className="flex justify-between items-center">
+                                <div className="flex items-center gap-2 overflow-hidden">
+                                  <span className="font-medium truncate">
+                                    {budget.budget_name}
+                                  </span>
+                                  <div className="flex-shrink-0">
+                                    {displayCategories(budget.category)}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`text-xs font-medium ${
+                                    isOverBudget
+                                      ? "text-red-500"
+                                      : progress >= 90
+                                      ? "text-amber-500"
+                                      : "text-green-500"
+                                  }`}
+                                >
+                                  {isOverBudget
+                                    ? `${Math.round(
+                                        (spent / budget.budget_amount) * 100
+                                      )}%`
+                                    : `${Math.round(progress)}%`}
+                                </span>
+                              </div>
+
+                              <div className="relative">
+                                <Progress
+                                  value={progress}
+                                  className={`h-6 w-full ${
+                                    isOverBudget ? "bg-red-100" : "bg-green-100"
+                                  }`}
+                                  indicatorClassName={
+                                    isOverBudget ? "bg-red-300" : "bg-gray-300"
+                                  }
+                                />
+                                <div className="absolute inset-0 flex justify-between items-center px-2 text-xs">
+                                  <span className="font-medium text-black">
+                                    {formatCurrency(spent)} /{" "}
+                                    {formatCurrency(budget.budget_amount)}
+                                  </span>
+                                  <span className="font-medium text-black">
+                                    {isOverBudget
+                                      ? `Over: ${formatCurrency(
+                                          Math.abs(remaining)
+                                        )} (${Math.round(
+                                          (Math.abs(remaining) /
+                                            budget.budget_amount) *
+                                            100
+                                        )}%)`
+                                      : `Left: ${formatCurrency(
+                                          Math.abs(remaining)
+                                        )}`}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
             </>
           )}
         </div>

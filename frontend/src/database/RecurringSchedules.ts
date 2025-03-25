@@ -3,23 +3,23 @@ import { RecurringSchedule } from "@/types/RecurringSchedule";
 
 // Type alias for better readability
 type ScheduleData = Omit<RecurringSchedule, "id" | "created_at">;
-type ScheduleResult = { id: string; user_id: string };
+type ScheduleResult = { id: string; account_id: string };
 
 /**
- * Fetches all recurring schedules for a user with optional filters
- * @param userId The ID of the user whose schedules to fetch
+ * Fetches all recurring schedules for an account with optional filters
+ * @param accountId The ID of the account whose schedules to fetch
  * @param options Optional filtering and pagination options
  * @returns Array of recurring schedules or empty array if none found
  */
-export const fetchUserRecurringSchedules = async (
-  userId: string,
+export const fetchAccountRecurringSchedules = async (
+  accountId: string,
   options?: {
     active?: boolean;
     limit?: number;
     offset?: number;
   }
 ): Promise<RecurringSchedule[]> => {
-  if (!userId) return [];
+  if (!accountId) return [];
 
   try {
     const supabase = createClient();
@@ -27,7 +27,7 @@ export const fetchUserRecurringSchedules = async (
     let query = supabase
       .from("recurring_schedules")
       .select("*")
-      .eq("user_id", userId);
+      .eq("account_id", accountId);
 
     // Apply filter for active status if specified
     if (options?.active !== undefined) {
@@ -62,13 +62,13 @@ export const fetchUserRecurringSchedules = async (
     const { data, error } = await query;
 
     if (error) {
-      console.error("Error fetching user recurring schedules:", error.message);
+      console.error("Error fetching account recurring schedules:", error.message);
       return [];
     }
 
     return data as RecurringSchedule[];
   } catch (error) {
-    console.error("Exception fetching user recurring schedules:", error);
+    console.error("Exception fetching account recurring schedules:", error);
     return [];
   }
 };
@@ -144,8 +144,8 @@ const createRecurringSchedulesCore = async (
 ): Promise<ScheduleResult[] | null> => {
   if (!schedules.length) return null;
 
-  // Ensure all schedules have a user_id
-  const invalidSchedule = schedules.find(schedule => !schedule.user_id);
+  // Ensure all schedules have an account_id
+  const invalidSchedule = schedules.find(schedule => !schedule.account_id);
   if (invalidSchedule) return null;
 
   try {
@@ -162,7 +162,7 @@ const createRecurringSchedulesCore = async (
     const { data, error } = await supabase
       .from("recurring_schedules")
       .insert(preparedSchedules)
-      .select("id, user_id");
+      .select("id, account_id");
 
     if (error) {
       console.error("Error creating recurring schedules:", error.message);

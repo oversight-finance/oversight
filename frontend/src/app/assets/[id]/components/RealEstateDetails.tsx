@@ -154,14 +154,14 @@ export default function RealEstateDetails({
   const monthlyCashFlow = -monthlyExpenses - monthlyMortgagePayment;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* First row: Property Info and Financial Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="shadow-none">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base">Property Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 pt-2">
             <div>
               <p className="text-sm text-muted-foreground">Property Type</p>
               <p className="font-medium capitalize">
@@ -203,11 +203,11 @@ export default function RealEstateDetails({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="shadow-none">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base">Financial Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Purchase Price</p>
@@ -313,11 +313,11 @@ export default function RealEstateDetails({
       </div>
 
       {/* Second row: Financing Progress and Appreciation Chart */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Expenses and Income Card (or Financing Progress if applicable) */}
         {financingProgress ? (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-none">
+            <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base">Financing Progress</CardTitle>
               <p className="text-sm text-muted-foreground">
                 {financingProgress.remainingBalance === 0
@@ -325,7 +325,7 @@ export default function RealEstateDetails({
                   : `${financingProgress.monthsPaid} of ${financingProgress.totalMonths} months completed`}
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 pt-2">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total Paid:</span>
@@ -493,11 +493,11 @@ export default function RealEstateDetails({
             </CardContent>
           </Card>
         ) : (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-none">
+            <CardHeader className="p-4 pb-2">
               <CardTitle className="text-base">Property Expenses</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 pt-2">
               <div className="space-y-2">
                 <p className="text-sm font-medium">Annual Expenses</p>
                 <div className="grid grid-cols-3 gap-4">
@@ -558,8 +558,8 @@ export default function RealEstateDetails({
         )}
 
         {/* Appreciation Chart Card */}
-        <Card className="flex flex-col">
-          <CardHeader>
+        <Card className="flex flex-col shadow-none">
+          <CardHeader className="p-4 pb-2">
             <CardTitle className="text-base">
               Projected Value Appreciation
             </CardTitle>
@@ -567,7 +567,7 @@ export default function RealEstateDetails({
               Based on {growthRate}% annual appreciation rate
             </p>
           </CardHeader>
-          <CardContent className="flex-1">
+          <CardContent className="flex-1 p-4 pt-2">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart

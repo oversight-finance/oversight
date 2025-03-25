@@ -137,14 +137,20 @@ export default function VehicleForm() {
   });
 
   // Just keep annual_growth_rate for calculation (negative for depreciation)
-  const [annual_growth_rate, setAnnualGrowthRate] = useState(-15); // default -15% annual depreciation
+  const [annual_growth_rate, setAnnualGrowthRate] = useState<number | string>(
+    -15
+  ); // default -15% annual depreciation
 
   // Calculate current value whenever relevant fields change
   useEffect(() => {
     const currentValue = calculateCurrentValue(
       formData.purchase_price || 0,
       formData.purchase_date || "",
-      annual_growth_rate
+      typeof annual_growth_rate === "string"
+        ? annual_growth_rate === ""
+          ? 0
+          : parseFloat(annual_growth_rate) || 0
+        : annual_growth_rate
     );
 
     setFormData((prev) => ({
@@ -202,7 +208,12 @@ export default function VehicleForm() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         payment_method: formData.payment_method,
-        annual_growth_rate: annual_growth_rate, // Add annual growth rate to vehicle data
+        annual_growth_rate:
+          typeof annual_growth_rate === "string"
+            ? annual_growth_rate === ""
+              ? 0
+              : parseFloat(annual_growth_rate) || 0
+            : annual_growth_rate, // Add annual growth rate to vehicle data
       };
 
       // Add financing details if not cash purchase
@@ -577,12 +588,13 @@ export default function VehicleForm() {
               id="annual_growth_rate"
               type="number"
               min="-50"
-              max="20"
+              max="100"
               step="0.1"
               value={annual_growth_rate}
-              onChange={(e) =>
-                setAnnualGrowthRate(parseFloat(e.target.value) || -15)
-              }
+              onChange={(e) => {
+                const value = e.target.value;
+                setAnnualGrowthRate(value);
+              }}
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">

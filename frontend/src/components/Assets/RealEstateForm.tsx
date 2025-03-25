@@ -47,7 +47,7 @@ export default function RealEstateForm() {
     city: "",
     state: "",
     zipCode: "",
-    country: "USA",
+    country: "Canada",
   });
 
   // Form data matching the RealEstate interface
@@ -185,7 +185,7 @@ export default function RealEstateForm() {
           city: "",
           state: "",
           zipCode: "",
-          country: "USA",
+          country: "Canada",
         });
 
         // Redirect to the new property's details page
@@ -281,7 +281,7 @@ export default function RealEstateForm() {
 
             <div className="space-y-2">
               <label htmlFor="state" className="text-sm font-medium">
-                State
+                Province/Territory
               </label>
               <Input
                 id="state"
@@ -293,7 +293,7 @@ export default function RealEstateForm() {
                   })
                 }
                 required
-                placeholder="CA"
+                placeholder="ON"
                 className="w-full"
               />
             </div>
@@ -302,7 +302,7 @@ export default function RealEstateForm() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label htmlFor="zipCode" className="text-sm font-medium">
-                Zip Code
+                Postal Code
               </label>
               <Input
                 id="zipCode"
@@ -314,7 +314,7 @@ export default function RealEstateForm() {
                   })
                 }
                 required
-                placeholder="12345"
+                placeholder="A1B 2C3"
                 className="w-full"
               />
             </div>
@@ -333,7 +333,7 @@ export default function RealEstateForm() {
                   })
                 }
                 required
-                placeholder="USA"
+                placeholder="Canada"
                 className="w-full"
               />
             </div>
@@ -487,13 +487,19 @@ export default function RealEstateForm() {
               min="0"
               max="20"
               step="0.1"
-              value={formData.annual_growth_rate || ""}
-              onChange={(e) =>
+              value={
+                formData.annual_growth_rate === undefined
+                  ? ""
+                  : formData.annual_growth_rate
+              }
+              onChange={(e) => {
+                const value = e.target.value;
                 setFormData({
                   ...formData,
-                  annual_growth_rate: parseFloat(e.target.value) || 3,
-                })
-              }
+                  annual_growth_rate:
+                    value === "" ? undefined : parseFloat(value),
+                });
+              }}
               className="w-full"
             />
             <p className="text-xs text-muted-foreground">

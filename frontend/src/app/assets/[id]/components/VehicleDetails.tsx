@@ -155,14 +155,14 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
   const financingProgress = calculateFinancingDetails();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* First row: Vehicle Info and Financial Info */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="shadow-none">
+          <CardHeader className="p-4 pb-2">
             <CardTitle>Vehicle Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Make & Model</p>
@@ -191,11 +191,11 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="shadow-none">
+          <CardHeader className="p-4 pb-2">
             <CardTitle>Financial Information</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 p-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-sm text-muted-foreground">Purchase Price</p>
@@ -307,11 +307,11 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
       </div>
 
       {/* Second row: Financing Progress and Depreciation Chart */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Financing Progress Card */}
         {financingProgress && (
-          <Card>
-            <CardHeader>
+          <Card className="shadow-none">
+            <CardHeader className="p-4 pb-2">
               <CardTitle>Financing Progress</CardTitle>
               <p className="text-sm text-muted-foreground">
                 {financingProgress.remainingBalance === 0
@@ -319,7 +319,7 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
                   : `${financingProgress.monthsPaid} of ${financingProgress.totalMonths} months completed`}
               </p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 p-4 pt-2">
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Total Paid:</span>
@@ -489,14 +489,14 @@ export default function VehicleDetails({ asset }: VehicleDetailsProps) {
         )}
 
         {/* Depreciation Chart Card */}
-        <Card className="flex flex-col">
-          <CardHeader>
+        <Card className="flex flex-col shadow-none">
+          <CardHeader className="p-4 pb-2">
             <CardTitle>Projected Value Depreciation</CardTitle>
             <p className="text-sm text-muted-foreground">
               Based on {depreciationRate}% annual depreciation rate
             </p>
           </CardHeader>
-          <CardContent className="flex-1">
+          <CardContent className="flex-1 p-4 pt-2">
             <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart

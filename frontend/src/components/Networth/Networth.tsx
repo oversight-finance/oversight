@@ -85,8 +85,8 @@ const formatAxisDate = (
     // For periods longer than a year, show "Jan 2023" format with year
     return date.toLocaleString("default", { month: "short", year: "numeric" });
   } else {
-    // For medium periods, show just month abbreviation
-    return date.toLocaleString("default", { month: "short" });
+    // For medium periods, show month abbreviation and day
+    return date.toLocaleString("default", { month: "short", day: "numeric" });
   }
 };
 

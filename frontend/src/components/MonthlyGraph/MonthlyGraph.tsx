@@ -72,8 +72,15 @@ const filterDataByTimeRange = (
 };
 
 const formatAxisDate = (date: Date, timeRange: string) => {
-  if (timeRange === "1M" || timeRange === "3M") {
+  if (
+    timeRange === "1M" ||
+    timeRange === "3M" ||
+    timeRange === "6M" ||
+    timeRange === "1Y"
+  ) {
     return date.toLocaleString("default", { month: "short", day: "numeric" });
+  } else if (timeRange === "2Y" || timeRange === "ALL") {
+    return date.toLocaleString("default", { month: "short", year: "2-digit" });
   }
   return date.toLocaleString("default", { month: "short" });
 };
@@ -130,34 +137,26 @@ export default function MonthlyGraph({
   const total = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
   const displayTotal = type === "spending" ? -total : total;
 
-  // Group transactions by period (month or week based on timeRange)
-  const groupedData = filteredTransactions.reduce((acc, transaction) => {
-    let periodKey;
+  // Create data points for each unique date with transactions
+  const dateMap = new Map<string, number>();
 
-    if (timeRange === "1M" || timeRange === "3M") {
-      // For short ranges, group by week
-      const date = transaction.date;
-      // Get the week start date (Sunday)
-      const day = date.getDay();
-      const weekStart = new Date(date);
-      weekStart.setDate(date.getDate() - day);
-      periodKey = weekStart.toISOString().slice(0, 10); // YYYY-MM-DD format
-    } else {
-      // For longer ranges, group by month
-      periodKey = transaction.date.toISOString().slice(0, 7); // YYYY-MM format
-    }
+  // Add each transaction to its specific date
+  filteredTransactions.forEach((transaction) => {
+    const dateStr = transaction.date.toISOString().split("T")[0]; // YYYY-MM-DD
+    const currentValue = dateMap.get(dateStr) || 0;
+    dateMap.set(dateStr, currentValue + transaction.amount);
+  });
 
-    if (!acc[periodKey]) {
-      acc[periodKey] = { value: 0, date: new Date(transaction.date) };
-    }
-    acc[periodKey].value += transaction.amount;
-    return acc;
-  }, {} as Record<string, DataPoint>);
-
-  // Convert to array and sort by date
-  let chartData = (Object.values(groupedData) as DataPoint[]).sort(
-    (a, b) => a.date.getTime() - b.date.getTime()
+  // Convert map to array of data points
+  let chartData: DataPoint[] = Array.from(dateMap.entries()).map(
+    ([dateStr, value]) => ({
+      date: new Date(dateStr),
+      value,
+    })
   );
+
+  // Sort by date
+  chartData = chartData.sort((a, b) => a.date.getTime() - b.date.getTime());
 
   // We don't need to filter chartData again since we already filtered the transactions
   // chartData = filterDataByTimeRange(chartData, timeRange);

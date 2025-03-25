@@ -19,13 +19,14 @@ export enum FrequencyType {
  */
 export interface RecurringSchedule {
   id: string;
-  user_id: string;
+  account_id: string;
   frequency: string;
   start_date: string;
   end_date?: string | null;
-  payment_method?: string | null;
-  default_amount: number;
+  merchant: string;
+  category: string;
   created_at: string;
+  amount: number;
 }
 
 /**

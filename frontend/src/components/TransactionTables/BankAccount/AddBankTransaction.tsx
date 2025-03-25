@@ -38,6 +38,14 @@ import { useParams } from "next/navigation";
 import { useAccounts } from "@/contexts/AccountsContext";
 import { toast } from "@/hooks/use-toast";
 import React from "react";
+import { createRecurringSchedule } from "@/database/RecurringSchedules";
+import { formatCurrency } from "@/lib/utils";
+import { FrequencyType } from "@/types/RecurringSchedule";
+import {
+  BudgetCategory,
+  INCOME_CATEGORIES,
+  EXPENSE_CATEGORIES,
+} from "@/types/Budgets";
 
 const formSchema = z
   .object({
@@ -61,13 +69,6 @@ const formSchema = z
           path: ["recurringFrequency"],
         });
       }
-      if (!data.recurringEndDate) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: "End date is required for recurring transactions",
-          path: ["recurringEndDate"],
-        });
-      }
     }
   });
 
@@ -75,38 +76,19 @@ interface AddBankTransactionProps {
   onTransactionAdd: (transactions: BankAccountTransaction[]) => void;
 }
 
-const incomeCategories = [
-  "Salary",
-  "Bonus",
-  "Investment",
-  "Gift",
-  "Refund",
-  "Interest",
-  "Dividend",
-  "Rental",
-  "Side hustle",
-  "Other",
-];
+// Use the imported category arrays
+// Define income category values using BudgetCategory enum values
+const incomeCategories = INCOME_CATEGORIES;
 
-const expenseCategories = [
-  "Housing",
-  "Transportation",
-  "Food",
-  "Utilities",
-  "Insurance",
-  "Healthcare",
-  "Savings",
-  "Personal",
-  "Entertainment",
-  "Other",
-];
+// Define expense category values using BudgetCategory enum values
+const expenseCategories = EXPENSE_CATEGORIES;
 
 export default function AddBankTransaction({
   onTransactionAdd,
 }: AddBankTransactionProps) {
   const [open, setOpen] = useState(false);
   const { id: accountId } = useParams();
-  const { refreshAccounts } = useAccounts();
+  const { refreshAccounts, processRecurringTransactions } = useAccounts();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -191,21 +173,81 @@ export default function AddBankTransaction({
         0
       ).toISOString();
 
-      const baseTransactionData = {
-        account_id: accountId as string,
-        transaction_date: formattedDate,
-        amount: adjustedAmount,
-        merchant: values.merchant,
-        category: values.category,
-      };
+      // Handle either recurring or immediate transaction
+      if (values.isRecurring && values.recurringFrequency) {
+        if (!accountId) {
+          console.error("No account ID available for recurring schedule");
+          toast({
+            title: "Error",
+            description:
+              "Could not create recurring transaction. Please try again.",
+            variant: "destructive",
+          });
+          loadingToast.dismiss();
+          setIsSubmitting(false);
+          return;
+        }
 
-      // Call the onTransactionAdd function from parent component
-      onTransactionAdd([baseTransactionData as BankAccountTransaction]);
+        // Map form frequency to RecurringSchedule frequency
+        let scheduleFrequency;
+        switch (values.recurringFrequency) {
+          case "weekly":
+            scheduleFrequency = FrequencyType.WEEKLY;
+            break;
+          case "monthly":
+            scheduleFrequency = FrequencyType.MONTHLY;
+            break;
+          case "yearly":
+            scheduleFrequency = FrequencyType.ANNUALLY;
+            break;
+        }
 
-      toast({
-        title: "Success",
-        description: "Transaction added successfully",
-      });
+        // Create recurring schedule data according to RecurringSchedule interface
+        const scheduleData = {
+          account_id: accountId as string,
+          frequency: scheduleFrequency,
+          start_date: values.date,
+          end_date: values.recurringEndDate || null,
+          merchant: values.merchant,
+          category: values.category,
+          amount: adjustedAmount,
+        };
+
+        // Create the recurring schedule
+        const scheduleId = await createRecurringSchedule(scheduleData);
+
+        if (!scheduleId) {
+          console.error("Failed to create recurring schedule");
+          toast({
+            title: "Error",
+            description: "Failed to create recurring transaction",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Success",
+            description: "Recurring transaction schedule created successfully",
+          });
+          processRecurringTransactions();
+        }
+      } else {
+        // For non-recurring transactions, create an immediate transaction
+        const baseTransactionData = {
+          account_id: accountId as string,
+          transaction_date: formattedDate,
+          amount: adjustedAmount,
+          merchant: values.merchant,
+          category: values.category,
+        };
+
+        // Call the onTransactionAdd function from parent component
+        onTransactionAdd([baseTransactionData as BankAccountTransaction]);
+
+        toast({
+          title: "Success",
+          description: "Transaction added successfully",
+        });
+      }
 
       // Close the dialog and reset the form
       console.log("Closing dialog and resetting form");
@@ -475,7 +517,7 @@ export default function AddBankTransaction({
                   name="recurringEndDate"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>End Date</FormLabel>
+                      <FormLabel>End Date (Optional)</FormLabel>
                       <FormControl>
                         <Input
                           type="date"
@@ -483,6 +525,9 @@ export default function AddBankTransaction({
                           min={form.getValues().date}
                         />
                       </FormControl>
+                      <FormDescription>
+                        Leave blank for an indefinite recurring transaction
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

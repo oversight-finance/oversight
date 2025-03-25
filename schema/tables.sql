@@ -157,3 +157,20 @@ CREATE TABLE IF NOT EXISTS public.real_estate (
 );
 ALTER TABLE public.real_estate ENABLE ROW LEVEL SECURITY;
 
+-- Budgets Table
+-- Stores user-defined budget limits for different spending categories.
+CREATE TABLE IF NOT EXISTS public.budgets (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  category text NOT NULL, -- Comma-separated list of categories
+  budget_name text NOT NULL,
+  budget_amount numeric(12, 2) NOT NULL,
+  frequency text NOT NULL CHECK (frequency IN ('daily', 'weekly', 'monthly', 'yearly')),
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.budgets ENABLE ROW LEVEL SECURITY;
+
+COMMENT ON TABLE public.budgets IS 'Stores user-defined budget limits for different spending categories.';
+COMMENT ON COLUMN public.budgets.category IS 'Comma-separated list of categories (e.g., "Groceries,Dining,Entertainment")';
+

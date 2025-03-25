@@ -41,14 +41,22 @@ import {
   deleteInvestmentTransactionBatch,
   updateInvestmentTransaction,
 } from "@/database/InvestmentTransactions";
-import { createBankAccount, fetchBankAccountWithTransactions } from "@/database/BankAccounts";
-import { createCryptoWallet, fetchCryptoWalletWithTransactions } from "@/database/CryptoWallets";
+import {
+  createBankAccount,
+  fetchBankAccountWithTransactions,
+} from "@/database/BankAccounts";
+import {
+  createCryptoWallet,
+  fetchCryptoWalletWithTransactions,
+} from "@/database/CryptoWallets";
 import {
   createInvestmentAccount,
   fetchInvestmentAccount,
   fetchInvestmentAccountWithTransactions,
 } from "@/database/InvestmentAccounts";
 import { useRouter } from "next/navigation";
+import { fetchAccountRecurringSchedules } from "@/database/RecurringSchedules";
+import { FrequencyType } from "@/types/RecurringSchedule";
 
 // Export database functions directly so components can use them
 export * from "@/database/Accounts";
@@ -76,6 +84,7 @@ export type AccountsContextType = {
 
   // Core actions
   refreshAccounts: () => Promise<void>;
+  processRecurringTransactions: () => Promise<void>;
   getTransactions: (
     accountType: AccountType,
     accountId: string
@@ -132,6 +141,8 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
   );
   const { getUserId, isLoading: isAuthLoading } = useAuth();
   const userId = getUserId();
+  // Add a flag to track if recurring transactions have been processed
+  const [recurringProcessed, setRecurringProcessed] = useState<boolean>(false);
 
   // Fetch accounts on mount
   useEffect(() => {
@@ -142,11 +153,27 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     loadAccounts();
   }, [userId]);
 
-  // Refresh all accounts data - the main state management function
+  // Process recurring transactions AFTER accounts are loaded, but only once
+  useEffect(() => {
+    // Only run if accounts are loaded, not empty, and we haven't processed yet
+    if (
+      !isLoading &&
+      accounts &&
+      accounts[AccountType.BANK] &&
+      Object.keys(accounts[AccountType.BANK]).length > 0 &&
+      !recurringProcessed
+    ) {
+      processRecurringTransactions();
+      setRecurringProcessed(true); // Mark as processed to prevent loops
+    }
+  }, [accounts, isLoading, recurringProcessed]);
+
+  // Reset the recurring processed flag when accounts are refreshed
   const refreshAccounts = async () => {
     try {
       setIsLoading(true);
       setError(null);
+      setRecurringProcessed(false); // Reset flag when refreshing
 
       // Wait for auth context to be ready
       if (isAuthLoading) {
@@ -598,8 +625,10 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
             accountData as BankAccount
           );
           if (bankAccountId) {
-            const bankAccount = await fetchBankAccountWithTransactions(bankAccountId);
-            
+            const bankAccount = await fetchBankAccountWithTransactions(
+              bankAccountId
+            );
+
             if (bankAccount) {
               setAccounts((prevAccounts) => ({
                 ...prevAccounts,
@@ -648,8 +677,10 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
             accountData as CryptoWallet
           );
           if (cryptoWalletId) {
-            const cryptoWallet = await fetchCryptoWalletWithTransactions(cryptoWalletId);
-            
+            const cryptoWallet = await fetchCryptoWalletWithTransactions(
+              cryptoWalletId
+            );
+
             if (cryptoWallet) {
               setAccounts((prevAccounts) => ({
                 ...prevAccounts,
@@ -747,6 +778,229 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  /**
+   * Generate dates for recurring schedule based on frequency
+   * @param startDate - The start date of the schedule
+   * @param endDate - The optional end date of the schedule (defaults to today)
+   * @param frequency - The frequency type (weekly, monthly, etc.)
+   * @returns Array of dates when transactions should occur
+   */
+  const generateRecurringDates = (
+    startDate: string,
+    endDate: string | null,
+    frequency: string
+  ): Date[] => {
+    const start = new Date(startDate);
+    const end = endDate ? new Date(endDate) : new Date(); // Use today if no end date
+    const dates: Date[] = [];
+
+    // Don't generate anything if start date is in the future
+    if (start > end) {
+      return [];
+    }
+
+    // Clone the start date to avoid modifying it
+    let currentDate = new Date(start);
+
+    // Add the first date
+    dates.push(new Date(currentDate));
+
+    // Generate subsequent dates based on frequency
+    while (true) {
+      switch (frequency) {
+        case FrequencyType.WEEKLY:
+          currentDate.setDate(currentDate.getDate() + 7);
+          break;
+        case FrequencyType.BIWEEKLY:
+          currentDate.setDate(currentDate.getDate() + 14);
+          break;
+        case FrequencyType.MONTHLY:
+          currentDate.setMonth(currentDate.getMonth() + 1);
+          break;
+        case FrequencyType.QUARTERLY:
+          currentDate.setMonth(currentDate.getMonth() + 3);
+          break;
+        case FrequencyType.ANNUALLY:
+          currentDate.setFullYear(currentDate.getFullYear() + 1);
+          break;
+        case FrequencyType.DAILY:
+          currentDate.setDate(currentDate.getDate() + 1);
+          break;
+        default:
+          // Unknown frequency, skip
+          return dates;
+      }
+
+      // Stop if we've gone past the end date
+      if (currentDate > end) {
+        break;
+      }
+
+      // Add this date to the list
+      dates.push(new Date(currentDate));
+    }
+
+    return dates;
+  };
+
+  /**
+   * Process all recurring transactions for bank accounts
+   * Generates transactions based on recurring schedules and adds them to accounts
+   */
+  const processRecurringTransactions = async () => {
+    try {
+      console.log(
+        "Processing recurring transactions with accounts:",
+        Object.keys(accounts[AccountType.BANK])
+      );
+
+      if (!accounts || !accounts[AccountType.BANK]) {
+        console.log(
+          "No bank accounts loaded yet, skipping recurring transactions"
+        );
+        return;
+      }
+
+      // Process each bank account
+      const bankAccounts = accounts[AccountType.BANK];
+      const updatedAccounts = { ...bankAccounts };
+      let accountsUpdated = false;
+
+      for (const accountId of Object.keys(bankAccounts)) {
+        // Fetch recurring schedules for this account
+        const recurringSchedules = await fetchAccountRecurringSchedules(
+          accountId
+        );
+
+        console.log("Found recurring schedules:", recurringSchedules.length);
+
+        if (!recurringSchedules.length) {
+          continue; // No recurring schedules for this account
+        }
+
+        const account = bankAccounts[accountId];
+        const existingTransactions = account.transactions || [];
+
+        // Improve duplicate detection - Track both recurring and regular transactions
+        // Use a Set for more efficient lookups
+        const existingTransactionKeys = new Set();
+
+        // Process all existing transactions and add their keys to the Set
+        existingTransactions.forEach((tx) => {
+          const dateKey = new Date(tx.transaction_date)
+            .toISOString()
+            .split("T")[0];
+          const merchant = (tx as BankAccountTransaction).merchant || "";
+          const amount = tx.amount;
+          // Create a more reliable key that includes all identifiable information
+          const key = `${dateKey}|${merchant}|${amount.toFixed(2)}`;
+          existingTransactionKeys.add(key);
+        });
+
+        let newTransactions: BankAccountTransaction[] = [];
+
+        // Process each recurring schedule
+        for (const schedule of recurringSchedules) {
+          // Generate transaction dates based on schedule frequency
+          const dates = generateRecurringDates(
+            schedule.start_date,
+            schedule.end_date || null,
+            schedule.frequency
+          );
+
+          console.log(
+            `Generated ${dates.length} dates for schedule ${schedule.id}`
+          );
+
+          // Create transactions for each date
+          for (const date of dates) {
+            // Create an ISO date string for the key
+            const dateStr = date.toISOString().split("T")[0];
+            const key = `${dateStr}|${
+              schedule.merchant
+            }|${schedule.amount.toFixed(2)}`;
+
+            // Only create transaction if it doesn't already exist
+            if (!existingTransactionKeys.has(key)) {
+              // Create a timestamp-based ID (not as reliable as UUID but works for demonstration)
+              const timestamp = new Date().getTime();
+              const randomSuffix = Math.floor(Math.random() * 10000);
+              const generatedId = `rec-${timestamp}-${randomSuffix}`;
+
+              // Create a new transaction for this date
+              const newTransaction: BankAccountTransaction = {
+                id: generatedId,
+                account_id: accountId,
+                transaction_date: new Date(
+                  date.setHours(12, 0, 0, 0)
+                ).toISOString(), // Noon UTC
+                amount: schedule.amount,
+                merchant: schedule.merchant,
+                category: schedule.category,
+                // Don't add created_at as it's not in the BankAccountTransaction type
+              };
+
+              newTransactions.push(newTransaction);
+              // Mark this transaction as processed
+              existingTransactionKeys.add(key);
+            }
+          }
+        }
+
+        console.log(`Created ${newTransactions.length} new transactions`);
+
+        // If we have new transactions, update the account
+        if (newTransactions.length > 0) {
+          // Sort transactions by date (newest first)
+          newTransactions.sort(
+            (a, b) =>
+              new Date(b.transaction_date).getTime() -
+              new Date(a.transaction_date).getTime()
+          );
+
+          // Calculate new balance
+          const totalNewAmount = newTransactions.reduce(
+            (sum, tx) => sum + tx.amount,
+            0
+          );
+          const newBalance = account.balance + totalNewAmount;
+
+          // Don't add transactions to the database - just update the local state
+          // as per user's request
+
+          // Combine and sort all transactions by date (newest first)
+          const allTransactions = [
+            ...newTransactions,
+            ...existingTransactions,
+          ].sort(
+            (a, b) =>
+              new Date(b.transaction_date).getTime() -
+              new Date(a.transaction_date).getTime()
+          );
+
+          // Update the local state with the new transactions and balance
+          updatedAccounts[accountId] = {
+            ...account,
+            transactions: allTransactions,
+            balance: newBalance,
+          };
+
+          accountsUpdated = true;
+        }
+      }
+
+      // If any accounts were updated, update the state
+      if (accountsUpdated) {
+        setAccounts((prev) => ({
+          ...prev,
+          [AccountType.BANK]: updatedAccounts,
+        }));
+      }
+    } catch (error) {
+      console.error("Error processing recurring transactions:", error);
+    }
+  };
+
   return (
     <AccountsContext.Provider
       value={{
@@ -757,6 +1011,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
 
         // Core actions
         refreshAccounts,
+        processRecurringTransactions,
         getTransactions,
         getAllTransactions,
         getCombinedTransactions,

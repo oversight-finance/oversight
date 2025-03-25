@@ -9,7 +9,7 @@ import {
   SidebarMenuButton,
 } from "@/components/ui/sidebar";
 import Link from "next/link";
-import { Home, Settings } from "lucide-react";
+import { Home, Settings, Wallet } from "lucide-react";
 import { AssetsSidebar } from "@/components/ui/AssetsSidebar";
 import { url } from "inspector";
 
@@ -18,6 +18,11 @@ const items = [
     title: "Dashboard",
     url: "/dashboard",
     icon: Home,
+  },
+  {
+    title: "Budgets",
+    url: "/budgets",
+    icon: Wallet,
   },
   {
     title: "Settings",

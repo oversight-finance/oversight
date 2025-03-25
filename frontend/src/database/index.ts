@@ -5,4 +5,5 @@ export * from './CryptoWallets';
 export * from './InvestmentAccounts';
 export * from './RecurringSchedules';
 export * from './Transactions';
-export * from './Users'; 
+export * from './Users';
+export * from './Budgets'; 
