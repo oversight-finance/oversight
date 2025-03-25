@@ -5,11 +5,9 @@ import { User as SupabaseUser } from "@supabase/supabase-js";
  */
 export type UserProfile = {
   id: string;
-  email: string;
   first_name: string | null;
   last_name: string | null;
   created_at: string;
-  updated_at: string;
 };
 
 /**
@@ -17,7 +15,6 @@ export type UserProfile = {
  */
 export type CreateUserData = {
   id: string;
-  email: string;
   first_name?: string;
   last_name?: string;
 };

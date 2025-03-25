@@ -185,7 +185,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Create a properly typed user object for the database
         const userData: CreateUserData = {
           id: data.user.id,
-          email: email,
           first_name: metadata?.firstName || "",
           last_name: metadata?.lastName || "",
         };

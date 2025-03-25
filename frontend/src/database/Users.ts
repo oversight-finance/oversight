@@ -81,7 +81,6 @@ export const createUser = async (user: CreateUserData): Promise<boolean> => {
     const { error } = await supabase.from("users").insert([
       {
         id: user.id,
-        email: user.email,
         first_name: user.first_name || null,
         last_name: user.last_name || null,
         created_at: new Date().toISOString(),
@@ -135,6 +134,60 @@ export const updateUserProfile = async (
   } catch (error) {
     console.error("Exception updating user profile:", error);
     return false;
+  }
+};
+
+/**
+ * Updates both Supabase Auth user and the custom users table
+ * @param authUpdates Fields to update in the Supabase Auth user
+ * @param profileUpdates Fields to update in our users table
+ * @returns Object containing success status for both operations
+ */
+export const updateUserWithAuth = async (
+  authUpdates: {
+    email?: string;
+    password?: string;
+    data?: Record<string, any>;
+  },
+  profileUpdates?: UserProfileUpdates
+): Promise<{
+  authUpdateSuccess: boolean;
+  profileUpdateSuccess: boolean | null;
+}> => {
+  try {
+    const supabase = createClient();
+
+    // Get the current user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !authData.user) {
+      console.error("Error getting current user:", authError);
+      return { authUpdateSuccess: false, profileUpdateSuccess: null };
+    }
+
+    // Update the Supabase Auth user
+    const { data, error } = await supabase.auth.updateUser(authUpdates);
+
+    if (error) {
+      console.error("Error updating auth user:", error);
+      return { authUpdateSuccess: false, profileUpdateSuccess: null };
+    }
+
+    // If there are no profile updates, return success
+    if (!profileUpdates) {
+      return { authUpdateSuccess: true, profileUpdateSuccess: null };
+    }
+
+    // Update the user profile in our database table
+    const profileUpdateSuccess = await updateUserProfile(
+      authData.user.id,
+      profileUpdates
+    );
+
+    return { authUpdateSuccess: true, profileUpdateSuccess };
+  } catch (error) {
+    console.error("Exception updating user with auth:", error);
+    return { authUpdateSuccess: false, profileUpdateSuccess: false };
   }
 };
 
