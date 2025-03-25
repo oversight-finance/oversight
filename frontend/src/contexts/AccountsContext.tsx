@@ -58,6 +58,7 @@ import {
 import { useRouter } from "next/navigation";
 import { fetchAccountRecurringSchedules } from "@/database/RecurringSchedules";
 import { FrequencyType } from "@/types/RecurringSchedule";
+import { CreateCryptoWallet } from "@/database/CryptoWallets";
 
 // Export database functions directly so components can use them
 export * from "@/database/Accounts";
@@ -98,9 +99,7 @@ export type AccountsContextType = {
     accountId: string,
     transactions: Transaction[]
   ) => Promise<boolean>;
-  addAccount: (
-    account: CreateAccounts
-  ) => Promise<Accounts | null>;
+  addAccount: (account: CreateAccounts) => Promise<Accounts | null>;
   deleteAccount: (
     accountType: AccountType,
     accountId: string
@@ -675,7 +674,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
           // For crypto wallets, use the specialized crypto wallet creation function
           const cryptoWalletId = await createCryptoWallet(
             userId,
-            accountData as CryptoWallet
+            accountData as CreateCryptoWallet
           );
           if (cryptoWalletId) {
             const cryptoWallet = await fetchCryptoWalletWithTransactions(
