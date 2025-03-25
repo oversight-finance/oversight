@@ -5,7 +5,11 @@ import { useParams } from "next/navigation";
 import { useAccounts } from "@/contexts/AccountsContext";
 import AccountBalance from "@/components/AccountBalance/AccountBalance";
 import { formatCurrency } from "@/lib/utils";
-import { AccountType, BankAccountTransaction, BankAccountWithTransactions } from "@/types";
+import {
+  AccountType,
+  BankAccountTransaction,
+  BankAccountWithTransactions,
+} from "@/types";
 import BankTransactionTable from "@/components/TransactionTables/BankAccount/BankTransactionTable";
 
 // Helper to calculate account balance from transactions
@@ -18,31 +22,43 @@ const calculateAccountBalance = (
 export default function AccountPage() {
   const { id } = useParams();
   const { accounts, isLoading, error } = useAccounts();
+
   const [balance, setBalance] = useState<number>(0);
-  
+
   // Update balance when account changes
   useEffect(() => {
-    if (!isLoading && accounts && id && accounts[AccountType.BANK]?.[id as string]) {
-      const account = accounts[AccountType.BANK][id as string] as BankAccountWithTransactions;
+    if (
+      !isLoading &&
+      accounts &&
+      id &&
+      accounts[AccountType.BANK]?.[id as string]
+    ) {
+      const account = accounts[AccountType.BANK][
+        id as string
+      ] as BankAccountWithTransactions;
       setBalance(account.balance);
     }
   }, [accounts, isLoading, id]);
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
-  
+
   // Only access accounts after we've confirmed they're loaded
   if (!accounts || !accounts[AccountType.BANK]?.[id as string]) {
     return <div>Account not found</div>;
   }
-  
-  const account = accounts[AccountType.BANK][id as string] as BankAccountWithTransactions;
+
+  const account = accounts[AccountType.BANK][
+    id as string
+  ] as BankAccountWithTransactions;
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold">Account - {account.account_name}</h1>
+          <h1 className="text-2xl font-bold">
+            Account - {account.account_name}
+          </h1>
           <p className="text-muted-foreground">Manage your transactions</p>
         </div>
         <div className="text-right">
