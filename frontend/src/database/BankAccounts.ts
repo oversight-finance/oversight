@@ -104,7 +104,7 @@ const createBankAccountsCore = async (
       user_id: userId,
       account_type: AccountType.BANK,
       account_name: bankAccount.account_name,
-      balance: bankAccount.balance, // Keep the balance as provided, don't modify it
+      balance: 0,
     }));
 
     const accountsResult = await createAccountsCore(baseAccounts);
@@ -137,6 +137,32 @@ const createBankAccountsCore = async (
       );
       await deleteAccountsCore(accountIdsToDelete);
       return null;
+    }
+
+    // Create initial transactions for each account with the opening balance
+    const initialTransactions = accountsResult.map((account: Account, index: number) => {
+      const initialBalance = bankAccounts[index].balance;
+      if (initialBalance && initialBalance > 0) {
+        return {
+          account_id: account.id,
+          transaction_date: new Date().toISOString().split('T')[0], // Current date in YYYY-MM-DD format
+          amount: initialBalance,
+          category: "transfer",
+        };
+      }
+      return null;
+    }).filter(Boolean); // Remove null entries
+
+    // Insert initial transactions if there are any
+    if (initialTransactions.length > 0) {
+      const { error: transactionError } = await supabase
+        .from("bank_accounts_transactions")
+        .insert(initialTransactions);
+
+      if (transactionError) {
+        console.error("Error creating initial transactions:", transactionError.message);
+        // We don't roll back the account creation if transaction creation fails
+      }
     }
 
     return accountsResult.map((account: Account) => account.id);

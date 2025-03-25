@@ -1,6 +1,8 @@
 // Account-related type definitions that match the database schema
 
 import { BankAccountTransaction, InvestmentTransaction, CryptoWalletTransaction } from "@/types/Transaction";
+import { CreateCryptoWallet } from "@/database/CryptoWallets";
+import { CreateInvestmentAccount } from "@/database/InvestmentAccounts";
 
 /**
  * Aligns with the account_type enum in the database
@@ -14,6 +16,7 @@ export enum AccountType {
 }
 
 export type Accounts = BankAccount | CryptoWallet | InvestmentAccount;
+export type CreateAccounts = BankAccount | CreateCryptoWallet | CreateInvestmentAccount;
 
 /**
  * Base account type matching accounts table

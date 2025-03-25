@@ -5,7 +5,7 @@ import { CryptoWalletTransaction } from "@/types";
 
 // Type aliases for better readability
 type CryptoWalletData = Omit<CryptoWallet, "account_id">;
-export type CreateCryptoWallet = Omit<
+export type CreateCryptoWallet = { price_at_transaction: number } & Omit<
   CryptoWallet,
   "account_id" | "id" | "user_id" | "created_at" | "updated_at"
 >;
@@ -99,7 +99,7 @@ const createCryptoWalletsCore = async (
       user_id: userId,
       account_name: cryptoWallet.account_name,
       account_type: AccountType.CRYPTO,
-      balance: cryptoWallet.balance,
+      balance: 0,
     }));
 
     const accountsResult = await createAccountsCore(baseAccounts);
@@ -130,6 +130,39 @@ const createCryptoWalletsCore = async (
       );
       await deleteAccountsCore(accountIdsToDelete);
       return null;
+    }
+
+    // Create initial transactions for each account with the opening balance
+    const initialTransactions = accountsResult
+      .map((account: Account, index: number) => {
+        const initialBalance = cryptoWallets[index].balance;
+        if (initialBalance && initialBalance > 0) {
+          return {
+            account_id: account.id,
+            transaction_date: new Date().toISOString().split("T")[0], // Current date in YYYY-MM-DD format
+            amount: initialBalance,
+            transaction_type: "transfer",
+            price_at_transaction: cryptoWallets[index].price_at_transaction, // 1 dollar
+            fee: 0,
+          };
+        }
+        return null;
+      })
+      .filter(Boolean); // Remove null entries
+
+    // Insert initial transactions if there are any
+    if (initialTransactions.length > 0) {
+      const { error: transactionError } = await supabase
+        .from("crypto_wallet_transactions")
+        .insert(initialTransactions);
+
+      if (transactionError) {
+        console.error(
+          "Error creating initial transactions:",
+          transactionError.message
+        );
+        // We don't roll back the account creation if transaction creation fails
+      }
     }
 
     return accountsResult.map((account: Account) => account.id);
@@ -166,7 +199,7 @@ export const createCryptoWallet = async (
  */
 export const createCryptoWalletsBatch = async (
   userId: string,
-  cryptoWallets: CryptoWalletData[]
+  cryptoWallets: CreateCryptoWallet[]
 ): Promise<string[] | null> => {
   return await createCryptoWalletsCore(userId, cryptoWallets);
 };

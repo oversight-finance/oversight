@@ -7,6 +7,7 @@ import {
 } from "@/types/Account";
 import { createAccountsCore, deleteAccountsCore } from "./Accounts";
 import { InvestmentTransaction } from "@/types";
+import InvestmentTransactionTable from "@/components/TransactionTables/Investment/InvestmentTransactionTable";
 
 // Type aliases for better readability
 type InvestmentAccountData = Omit<InvestmentAccount, "account_id">;
@@ -107,7 +108,7 @@ const createInvestmentAccountsCore = async (
       user_id: userId,
       account_name: investmentAccount.account_name,
       account_type: AccountType.INVESTMENT,
-      balance: investmentAccount.balance,
+      balance: 0,
     }));
 
     const accountsResult = await createAccountsCore(baseAccounts);
@@ -144,6 +145,42 @@ const createInvestmentAccountsCore = async (
       );
       await deleteAccountsCore(accountIdsToDelete);
       return null;
+    }
+
+    // Create initial transactions for each account with the opening balance
+    const initialTransactions = accountsResult
+      .map((account: Account, index: number) => {
+        const initialBalance = investmentAccounts[index].balance;
+        if (initialBalance && initialBalance > 0) {
+          return {
+            account_id: account.id,
+            transaction_date: new Date().toISOString().split("T")[0], // Current date in YYYY-MM-DD format
+            amount: initialBalance,
+            transaction_type: "transfer",
+            currency: investmentAccounts[index].currency,
+            fee: 0,
+            ticker_symbol: investmentAccounts[index].currency,
+            price_per_unit: 1,
+            quantity: initialBalance, 
+          };
+        }
+        return null;
+      })
+      .filter(Boolean); // Remove null entries
+
+    // Insert initial transactions if there are any
+    if (initialTransactions.length > 0) {
+      const { error: transactionError } = await supabase
+        .from("investment_transactions")
+        .insert(initialTransactions);
+
+      if (transactionError) {
+        console.error(
+          "Error creating initial transactions:",
+          transactionError.message
+        );
+        // We don't roll back the account creation if transaction creation fails
+      }
     }
 
     return accountsResult.map((account: Account) => account.id);

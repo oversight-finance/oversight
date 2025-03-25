@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { DialogClose } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
+import { CreateInvestmentAccount } from "@/database/InvestmentAccounts";
 // Define common investment types
 const investmentTypes = ["RRSP", "TFSA", "401k", "IRA", "General", "Other"];
 
@@ -89,10 +90,8 @@ export default function InvestmentForm() {
       };
 
       const result = (await addAccount(
-        account as InvestmentAccount
+        account as CreateInvestmentAccount
       )) as InvestmentAccount;
-
-      console.log("result", result);
 
       if (result) {
         toast({

@@ -6,6 +6,8 @@ import { toast } from "@/hooks/use-toast";
 import { AccountType, CryptoWallet } from "@/types/Account";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { CreateCryptoWallet } from "@/database";
+import { DialogClose } from "@/components/ui/dialog";
 
 // Define common cryptocurrencies for the dropdown
 const commonCoins = [
@@ -42,6 +44,7 @@ export default function CryptoWalletForm() {
     wallet_address: "",
     coin_symbol: "",
     balance: 0,
+    price_at_transaction: 1,
   });
   const dialogCloseRef = useRef<HTMLButtonElement>(null);
   const router = useRouter();
@@ -69,9 +72,10 @@ export default function CryptoWalletForm() {
         wallet_address: formData.wallet_address || undefined,
         coin_symbol: formData.coin_symbol.toUpperCase(),
         balance: formData.balance,
+        price_at_transaction: formData.price_at_transaction,
       };
 
-      const result = await addAccount(wallet as CryptoWallet);
+      const result = await addAccount(wallet as CreateCryptoWallet);
 
       if (result) {
         toast({
@@ -90,6 +94,7 @@ export default function CryptoWalletForm() {
           wallet_address: "",
           coin_symbol: "",
           balance: 0,
+          price_at_transaction: 1,
         });
 
         router.push(`/accounts/crypto/${result.id}`);
@@ -113,6 +118,8 @@ export default function CryptoWalletForm() {
       onSubmit={handleSubmit}
       className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-2"
     >
+      {/* Hidden DialogClose component that we can click programmatically */}
+      <DialogClose ref={dialogCloseRef} className="hidden" />
       <div className="space-y-2">
         <label htmlFor="account_name">Wallet Name</label>
         <Input
@@ -173,6 +180,25 @@ export default function CryptoWalletForm() {
             setFormData({ ...formData, balance: Number(e.target.value) })
           }
           placeholder="0.00"
+          required
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="price_at_transaction">Average Holding Price</label>
+        <Input
+          id="price_at_transaction"
+          type="number"
+          step="any"
+          min="0"
+          value={formData.price_at_transaction}
+          onChange={(e) =>
+            setFormData({
+              ...formData,
+              price_at_transaction: Number(e.target.value),
+            })
+          }
+          placeholder="1.00"
           required
         />
       </div>

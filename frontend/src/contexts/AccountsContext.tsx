@@ -7,6 +7,7 @@ import {
   AccountType,
   Accounts,
   BankAccount,
+  CreateAccounts,
   CryptoWallet,
   InvestmentAccount,
 } from "@/types/Account";
@@ -98,7 +99,7 @@ export type AccountsContextType = {
     transactions: Transaction[]
   ) => Promise<boolean>;
   addAccount: (
-    account: Omit<Accounts, "id" | "created_at" | "updated_at">
+    account: CreateAccounts
   ) => Promise<Accounts | null>;
   deleteAccount: (
     accountType: AccountType,
@@ -602,7 +603,7 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
 
   // Add a new account to the database
   const addAccount = async (
-    accountData: Omit<Accounts, "id" | "created_at" | "updated_at">
+    accountData: CreateAccounts
   ): Promise<Accounts | null> => {
     try {
       setIsLoading(true);
