@@ -91,7 +91,14 @@ const formatAxisDate = (
 };
 
 export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
-  if (data.length === 0) {
+  // Clean the data by converting extremely small values to zero
+  // This fixes floating point precision issues where values like e-12 appear
+  const cleanedData = data.map((point) => ({
+    ...point,
+    netWorth: Math.abs(point.netWorth) < 0.01 ? 0 : point.netWorth,
+  }));
+
+  if (cleanedData.length === 0) {
     return (
       <div className="space-y-4">
         <Card>
@@ -113,16 +120,16 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
     );
   }
 
-  const minNetWorth = Math.min(...data.map((d) => d.netWorth));
-  const maxNetWorth = Math.max(...data.map((d) => d.netWorth));
+  const minNetWorth = Math.min(...cleanedData.map((d) => d.netWorth));
+  const maxNetWorth = Math.max(...cleanedData.map((d) => d.netWorth));
   const zeroOffset = (maxNetWorth / (maxNetWorth - minNetWorth)) * 100;
 
   const formatDate = (date: Date) => {
     return date.toLocaleString("default", { month: "short" });
   };
 
-  const startDate = data[0].date;
-  const endDate = data[data.length - 1].date;
+  const startDate = cleanedData[0].date;
+  const endDate = cleanedData[cleanedData.length - 1].date;
 
   // Calculate time span in days for determining axis interval
   const daysDiff = Math.round(
@@ -139,14 +146,39 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
     if (periodData.length < 2) return 0;
 
     const latestNetWorth = periodData[periodData.length - 1].netWorth;
-    const startingNetWorth = periodData[0].netWorth;
 
-    return startingNetWorth !== 0
-      ? ((latestNetWorth - startingNetWorth) / Math.abs(startingNetWorth)) * 100
-      : 0;
+    // Find a valid starting point - ignore zero values at the beginning
+    let startIndex = 0;
+    let startingNetWorth = periodData[0].netWorth;
+
+    // Find the first significant non-zero value for calculating percentage change
+    if (startingNetWorth === 0) {
+      for (let i = 1; i < periodData.length - 1; i++) {
+        if (periodData[i].netWorth !== 0) {
+          startIndex = i;
+          startingNetWorth = periodData[i].netWorth;
+          break;
+        }
+      }
+    }
+
+    // If all values are zero except the last one, use a reasonable default
+    if (startingNetWorth === 0 && latestNetWorth !== 0) {
+      return latestNetWorth > 0 ? 100 : -100;
+    }
+
+    // If starting value is zero, we can't calculate a percentage change
+    if (startingNetWorth === 0) {
+      return 0;
+    }
+
+    // Calculate proper percentage change
+    return (
+      ((latestNetWorth - startingNetWorth) / Math.abs(startingNetWorth)) * 100
+    );
   };
 
-  const netWorthChange = calculateNetWorthChange(data);
+  const netWorthChange = calculateNetWorthChange(cleanedData);
 
   return (
     <Card className="h-full">
@@ -155,12 +187,12 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
           <CardTitle className="text-base font-medium">Net Worth</CardTitle>
           <span
             className={`text-sm font-medium ${
-              data[data.length - 1].netWorth >= 0
+              cleanedData[cleanedData.length - 1].netWorth >= 0
                 ? "text-success"
                 : "text-destructive"
             }`}
           >
-            {formatTotalAmount(data[data.length - 1].netWorth)}
+            {formatTotalAmount(cleanedData[cleanedData.length - 1].netWorth)}
           </span>
         </div>
         <CardDescription>
@@ -176,7 +208,7 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
             <ChartContainer config={chartConfig} className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
-                  data={data}
+                  data={cleanedData}
                   margin={{ top: 5, right: 5, left: 20, bottom: 0 }}
                 >
                   <defs>
@@ -211,7 +243,7 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
                     axisLine={true}
                     tickMargin={8}
                     tickFormatter={(date) =>
-                      formatAxisDate(date, data, timeRange)
+                      formatAxisDate(date, cleanedData, timeRange)
                     }
                     interval="preserveStartEnd"
                     minTickGap={
@@ -241,7 +273,11 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
                             })}
                           </div>
                           <div className="font-bold">
-                            Net Worth: {formatLargeNumber(data.netWorth)}
+                            Net Worth: $
+                            {data.netWorth.toLocaleString(undefined, {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
                           </div>
                         </div>
                       );
@@ -265,7 +301,7 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
         <div className="flex w-full items-start gap-2 text-xs md:text-sm pt-2">
           <div className="grid gap-2">
             <div className="flex items-center gap-2 font-medium leading-none">
-              {data.length > 1 ? (
+              {cleanedData.length > 1 ? (
                 netWorthChange >= 0 ? (
                   <>
                     Net worth up by {netWorthChange.toFixed(1)}%
@@ -279,7 +315,8 @@ export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
                 )
               ) : (
                 <>
-                  Initial net worth: {formatTotalAmount(data[0]?.netWorth ?? 0)}
+                  Initial net worth:{" "}
+                  {formatTotalAmount(cleanedData[0]?.netWorth ?? 0)}
                 </>
               )}
             </div>
