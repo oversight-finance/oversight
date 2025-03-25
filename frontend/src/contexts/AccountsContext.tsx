@@ -10,10 +10,15 @@ import {
 } from "@/types/Transaction";
 import { createAccount } from "@/database/Accounts";
 import {
+  createBankTransactionsForAccount,
+  deleteBankTransaction,
+  deleteBankTransactionBatch,
   fetchBankAccountsWithTransactions,
   fetchCryptoWalletsWithTransactions,
   fetchInvestmentAccountsWithTransactions,
+  updateBankTransaction,
 } from "@/database";
+import { createCryptoWalletTransaction, createCryptoWalletTransactionsForAccount, deleteCryptoWalletTransaction, deleteCryptoWalletTransactionBatch, updateCryptoWalletTransaction } from "@/database/CryptoWalletTransactions";
 
 // Export database functions directly so components can use them
 export * from "@/database/Accounts";
@@ -48,9 +53,30 @@ export type AccountsContextType = {
   getAllTransactions: (accountType: AccountType) => Transaction[];
   getCombinedTransactions: () => Transaction[];
   getCombinedBalances: () => number;
+  addTransactions: (
+    accountType: AccountType,
+    accountId: string,
+    transactions: Transaction[]
+  ) => Promise<boolean>;
   addAccount: (
     account: Omit<Account, "id" | "created_at" | "updated_at">
   ) => Promise<Account | null>;
+  deleteTransaction: (
+    accountType: AccountType,
+    accountId: string,
+    transactionId: string
+  ) => Promise<boolean>;
+  deleteBatchTransaction: (
+    accountType: AccountType,
+    accountId: string,
+    transactionIds: string[]
+  ) => Promise<boolean>;
+  updateTransaction: (
+    accountType: AccountType,
+    accountId: string,
+    transactionId: string,
+    transaction: Transaction
+  ) => Promise<boolean>;
 };
 
 const AccountsContext = createContext<AccountsContextType | null>(null);
@@ -192,8 +218,250 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     accountType: AccountType,
     accountId: string
   ): Transaction[] => {
-    const account = accounts[accountType][accountId];
+    const account = accounts[accountType]?.[accountId];
+    if (!account) {
+      console.error(`Account not found: ${accountType} ${accountId}`);
+      return [];
+    }
+    if (!account.transactions) {
+      console.error(`No transactions found for account: ${accountType} ${accountId}`);
+      return [];
+    }
     return account.transactions;
+  };
+
+  const addTransactions = async (
+    accountType: AccountType,
+    accountId: string,
+    transactions: Transaction[]
+  ): Promise<boolean> => {
+    if (!accountId || !transactions) {
+      console.error("Missing required parameters for addTransaction");
+      return false;
+    }
+
+    const account = accounts[accountType]?.[accountId];
+    if (!account) {
+      console.error(`Account not found: ${accountType} ${accountId}`);
+      return false;
+    }
+
+    // update database accordingly based on account type
+    let success = false;
+    try {
+      switch (accountType) {
+        case AccountType.BANK:
+          await createBankTransactionsForAccount(transactions as BankAccountTransaction[], accountId);
+          success = true;
+          break;
+        case AccountType.CRYPTO:
+          await createCryptoWalletTransactionsForAccount(transactions as CryptoWalletTransaction[], accountId);
+          success = true;
+          break;
+        case AccountType.INVESTMENT:
+          // await createInvestmentTransaction(transaction);
+          console.warn("Investment transaction creation not yet implemented");
+          return false;
+      }
+      if (!success) {
+        console.error(`Failed to add ${accountType} transactions: ${transactions.map(t => t.id).join(', ')}`);
+        return false;
+      }
+
+      const updatedTransactions = account.transactions.concat(transactions);
+      setAccounts((prev) => ({
+        ...prev,
+        [accountType]: { ...prev[accountType], [accountId]: { ...account, transactions: updatedTransactions } }
+      }));
+      return true;
+    } catch (error) {
+      console.error(`Error adding ${accountType} transactions:`, error);
+      return false;
+    }
+  };
+
+  const deleteTransaction = async (
+    accountType: AccountType,
+    accountId: string,
+    transactionId: string
+  ): Promise<boolean> => {
+    if (!accountId || !transactionId) {
+      console.error("Missing required parameters for deleteTransaction");
+      return false;
+    }
+
+    const account = accounts[accountType]?.[accountId];
+    if (!account) {
+      console.error(`Account not found: ${accountType} ${accountId}`);
+      return false;
+    }
+
+    // update database accordingly based on account type
+    let success = false;
+    try {
+      switch (accountType) {
+        case AccountType.BANK:
+          success = await deleteBankTransaction(transactionId);
+          break;
+        case AccountType.CRYPTO:
+          success = await deleteCryptoWalletTransaction(transactionId);
+          break;
+        case AccountType.INVESTMENT:
+          console.warn("Investment transaction deletion not yet implemented");
+          return false;
+        default:
+          console.error(`Unknown account type: ${accountType}`);
+          return false;
+      }
+
+      if (!success) {
+        console.error(`Failed to delete ${accountType} transaction with ID: ${transactionId}`);
+        return false;
+      }
+
+      const updatedTransactions = account.transactions.filter(
+        (transaction) => transaction.id !== transactionId
+      );
+      
+      setAccounts((prev) => ({
+        ...prev,
+        [accountType]: { ...prev[accountType], [accountId]: { ...account, transactions: updatedTransactions } }
+      }));
+      
+      return true;
+    } catch (error) {
+      console.error(`Error deleting ${accountType} transaction:`, error);
+      return false;
+    }
+  };
+
+  const deleteBatchTransaction = async (
+    accountType: AccountType,
+    accountId: string,
+    transactionIds: string[]
+  ): Promise<boolean> => {
+    if (!accountId || !transactionIds) {
+      console.error("Missing required parameters for deleteTransaction");
+      return false;
+    }
+
+    const account = accounts[accountType]?.[accountId];
+    if (!account) {
+      console.error(`Account not found: ${accountType} ${accountId}`);
+      return false;
+    }
+
+    // update database accordingly based on account type
+    let success = false;
+    try {
+      switch (accountType) {
+        case AccountType.BANK:
+          const bankResults = await deleteBankTransactionBatch(transactionIds);
+          success = Array.from(bankResults.values()).every(result => result === true);
+          break;
+        case AccountType.CRYPTO:
+          const cryptoResults = await deleteCryptoWalletTransactionBatch(transactionIds);
+          success = Array.from(cryptoResults.values()).every(result => result === true);
+          break;
+        case AccountType.INVESTMENT:
+          console.warn("Investment transaction deletion not yet implemented");
+          return false;
+        default:
+          console.error(`Unknown account type: ${accountType}`);
+          return false;
+      }
+
+      if (!success) {
+        console.error(
+          `Failed to delete ${accountType} transaction with ID: ${transactionIds}`
+        );
+        return false;
+      }
+
+      const updatedTransactions = account.transactions.filter(
+        (transaction) => !transactionIds.includes(transaction.id)
+      );
+
+      setAccounts((prev) => ({
+        ...prev,
+        [accountType]: {
+          ...prev[accountType],
+          [accountId]: { ...account, transactions: updatedTransactions },
+        },
+      }));
+
+      return true;
+    } catch (error) {
+      console.error(`Error deleting ${accountType} transaction:`, error);
+      return false;
+    }
+  };
+  
+
+  const updateTransaction = async (
+    accountType: AccountType,
+    accountId: string,
+    transactionId: string,
+    transaction: Transaction
+  ): Promise<boolean> => {
+    // Validate input parameters
+    if (!accountType || !accountId || !transactionId || !transaction) {
+      console.error("Missing required parameters for updateTransaction");
+      return false;
+    }
+
+    // Check if account exists
+    const account = accounts[accountType]?.[accountId];
+    if (!account) {
+      console.error(`Account not found: ${accountType} ${accountId}`);
+      return false;
+    }
+
+    // Check if transaction exists in this account
+    const existingTransaction = account.transactions.find(t => t.id === transactionId);
+    if (!existingTransaction) {
+      console.error(`Transaction with ID ${transactionId} not found in account ${accountId}`);
+      return false;
+    }
+
+    // update database accordingly based on account type
+    let success = false;
+    try {
+      switch (accountType) {
+        case AccountType.BANK:
+          success = await updateBankTransaction(transactionId, transaction as BankAccountTransaction);
+          break;
+        case AccountType.CRYPTO:
+          success = await updateCryptoWalletTransaction(transactionId, transaction as CryptoWalletTransaction);
+          break;
+        case AccountType.INVESTMENT:
+          // await updateInvestmentTransaction(transactionId, transaction as InvestmentTransaction);
+          console.warn("Investment transaction updates not yet implemented");
+          return false;
+        default:
+          console.error(`Unknown account type: ${accountType}`);
+          return false;
+      }
+      
+      if (!success) {
+        console.error(`Failed to update ${accountType} transaction with ID: ${transactionId}`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`Error updating ${accountType} transaction:`, error);
+      return false;
+    }
+    const updatedTransactions = account.transactions.map((t) =>
+      t.id === transactionId ? transaction : t
+    );
+    setAccounts((prev) => ({
+      ...prev,
+      [accountType]: {
+        ...prev[accountType],
+        [accountId]: { ...account, transactions: updatedTransactions },
+      },
+    }));
+    return true;
   };
 
   const setDateRange = (start: Date, end: Date) => {
@@ -263,6 +531,10 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
         getCombinedTransactions,
         getCombinedBalances,
         addAccount,
+        addTransactions,
+        deleteTransaction,
+        deleteBatchTransaction,
+        updateTransaction,
       }}
     >
       {children}

@@ -2,42 +2,44 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { fetchCryptoWallet } from "@/database/CryptoWallets";
+import { useAccounts } from "@/contexts/AccountsContext";
 import AccountBalance from "@/components/AccountBalance/AccountBalance";
 import { formatCurrency } from "@/lib/utils";
-import { CryptoWallet } from "@/types/Account";
+import { AccountType, CryptoWalletWithTransactions } from "@/types";
 import CryptoWalletTransactionTable from "@/components/TransactionTables/CryptoWallet/CryptoWalletTransactionTable";
 
 export default function CryptoWalletPage() {
   const { id } = useParams();
-  const [cryptoWallet, setCryptoWallet] = useState<CryptoWallet | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+  const { accounts, isLoading, error } = useAccounts();
 
-  // Fetch crypto wallet data
+  const [balance, setBalance] = useState<number>(0);
+
+  // Update balance when account changes
   useEffect(() => {
-    const loadCryptoWallet = async () => {
-      setIsLoading(true);
-      try {
-        const wallet = await fetchCryptoWallet(id as string);
-        setCryptoWallet(wallet);
-        if (!wallet) {
-          setError("Crypto wallet not found");
-        }
-      } catch (err) {
-        console.error("Error fetching crypto wallet:", err);
-        setError("Failed to load crypto wallet data");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadCryptoWallet();
-  }, [id]);
+    if (
+      !isLoading &&
+      accounts &&
+      id &&
+      accounts[AccountType.CRYPTO]?.[id as string]
+    ) {
+      const account = accounts[AccountType.CRYPTO][
+        id as string
+      ] as CryptoWalletWithTransactions;
+      setBalance(account.balance);
+    }
+  }, [accounts, isLoading, id]);
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
-  if (!cryptoWallet) return <div>Crypto wallet not found</div>;
+
+  // Only access accounts after we've confirmed they're loaded
+  if (!accounts || !accounts[AccountType.CRYPTO]?.[id as string]) {
+    return <div>Crypto wallet not found</div>;
+  }
+
+  const cryptoWallet = accounts[AccountType.CRYPTO][
+    id as string
+  ] as CryptoWalletWithTransactions;
 
   return (
     <div className="p-6 space-y-6">
@@ -54,9 +56,7 @@ export default function CryptoWalletPage() {
           )}
         </div>
         <div className="text-right">
-          <div className="text-2xl font-bold">
-            {formatCurrency(cryptoWallet.balance)}
-          </div>
+          <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
           <div className="text-sm text-muted-foreground">Current Balance</div>
         </div>
       </div>

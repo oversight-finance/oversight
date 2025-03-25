@@ -1,16 +1,11 @@
 "use client";
 
 import React from "react";
-import {
-  fetchCryptoWalletTransactions,
-  deleteCryptoWalletTransaction,
-  updateCryptoWalletTransaction,
-  deleteCryptoWalletTransactionBatch,
-} from "@/database/CryptoWalletTransactions";
 import TransactionTable from "../TransactionTable";
-import { CryptoWalletTransaction } from "@/types/Transaction";
+import { AccountType, CryptoWalletTransaction } from "@/types";
 import { toast } from "@/hooks/use-toast";
 import AddCryptoWalletTransaction from "./AddCryptoWalletTransaction";
+import { useAccounts } from "@/contexts/AccountsContext";
 
 interface CryptoWalletTransactionTableProps {
   accountId: string;
@@ -21,6 +16,13 @@ export default function CryptoWalletTransactionTable({
   accountId,
   title = "Crypto Transactions",
 }: CryptoWalletTransactionTableProps) {
+  const {
+    getTransactions,
+    deleteTransaction,
+    updateTransaction,
+    deleteBatchTransaction,
+    addTransactions,
+  } = useAccounts();
   const [transactions, setTransactions] = React.useState<
     CryptoWalletTransaction[]
   >([]);
@@ -28,13 +30,17 @@ export default function CryptoWalletTransactionTable({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Function to refresh transactions
-  const refreshTransactions = React.useCallback(async () => {
+  const refreshTransactions = React.useCallback(() => {
     if (!accountId) return;
 
     setLoading(true);
     try {
-      const data = await fetchCryptoWalletTransactions(accountId);
-      setTransactions(data);
+      setTransactions(
+        getTransactions(
+          AccountType.CRYPTO,
+          accountId
+        ) as CryptoWalletTransaction[]
+      );
     } catch (error) {
       console.error("Failed to load crypto wallet transactions:", error);
       toast({
@@ -45,7 +51,7 @@ export default function CryptoWalletTransactionTable({
     } finally {
       setLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, getTransactions]);
 
   // Load transactions on mount and when accountId changes
   React.useEffect(() => {
@@ -61,11 +67,15 @@ export default function CryptoWalletTransactionTable({
     });
 
     try {
-      const success = await deleteCryptoWalletTransaction(transactionId);
+      const success = await deleteTransaction(
+        AccountType.CRYPTO,
+        accountId,
+        transactionId
+      );
+
+      refreshTransactions();
 
       if (success) {
-        // Update local state to remove the deleted transaction
-        setTransactions((prev) => prev.filter((t) => t.id !== transactionId));
         toast({
           title: "Success",
           description: "Transaction deleted successfully",
@@ -102,13 +112,15 @@ export default function CryptoWalletTransactionTable({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, ...updates } = updated;
 
-      const success = await updateCryptoWalletTransaction(original.id, updates);
+      const success = await updateTransaction(
+        AccountType.CRYPTO,
+        accountId,
+        original.id,
+        { ...original, ...updates }
+      );
 
       if (success) {
-        // Update local state with the edited transaction
-        setTransactions((prev) =>
-          prev.map((t) => (t.id === original.id ? { ...t, ...updated } : t))
-        );
+        refreshTransactions();
 
         toast({
           title: "Success",
@@ -134,8 +146,8 @@ export default function CryptoWalletTransactionTable({
   const handleTransactionAdd = async (
     newTransactions: CryptoWalletTransaction[]
   ) => {
-    // Add the new transactions to the local state
-    setTransactions((prev) => [...prev, ...newTransactions]);
+    // Add the new transactions using the context method
+    addTransactions(AccountType.CRYPTO, accountId, newTransactions);
 
     // Refresh to ensure we have the latest data
     await refreshTransactions();
@@ -153,50 +165,64 @@ export default function CryptoWalletTransactionTable({
       description: `Deleting ${selectedTransactions.length} transactions...`,
     });
 
-    try {
-      // Extract transaction IDs
-      const transactionIds = selectedTransactions.map(
-        (transaction) => transaction.id
-      );
+    console.log("Deleting transactions:", selectedTransactions);
 
-      // Use the batch delete function
-      const results = await deleteCryptoWalletTransactionBatch(transactionIds);
-
-      // Count successful deletions
-      let successCount = 0;
-      const deletedIds: string[] = [];
-
-      // Process results
-      results.forEach((success, id) => {
-        if (success) {
-          successCount++;
-          deletedIds.push(id);
+    // Find the property that contains the ID
+    const transactionIds = selectedTransactions
+      .map((transaction) => {
+        // Log the first transaction to see its structure
+        if (selectedTransactions.indexOf(transaction) === 0) {
+          console.log(
+            "Transaction object structure:",
+            JSON.stringify(transaction)
+          );
         }
-      });
 
-      // Remove successfully deleted transactions from state
-      if (successCount > 0) {
-        setTransactions((prev) =>
-          prev.filter((t) => !deletedIds.includes(t.id))
-        );
+        // Check if the ID exists in the transaction object
+        if (transaction.id) {
+          return transaction.id;
+        } else {
+          // Look for an ID in a possible nested structure or with different naming
+          const possibleIdKeys = [
+            "id",
+            "transactionId",
+            "transaction_id",
+            "ID",
+          ];
+          for (const key of possibleIdKeys) {
+            // Use type assertion to handle the dynamic property access
+            const transactionAny = transaction as Record<string, any>;
+            if (transactionAny[key]) {
+              return transactionAny[key];
+            }
+          }
 
-        toast({
-          title: "Success",
-          description: `${successCount} transaction${
-            successCount !== 1 ? "s" : ""
-          } deleted successfully`,
-        });
+          console.error(
+            "Could not find ID in transaction object:",
+            transaction
+          );
+          return null;
+        }
+      })
+      .filter((id) => id !== null); // Remove any null IDs
+
+    try {
+      if (transactionIds.length === 0) {
+        throw new Error("No valid transaction IDs found");
       }
 
-      // Report failures if any
-      const failureCount = selectedTransactions.length - successCount;
-      if (failureCount > 0) {
+      const success = await deleteBatchTransaction(
+        AccountType.CRYPTO,
+        accountId,
+        transactionIds as string[]
+      );
+
+      refreshTransactions();
+
+      if (success) {
         toast({
-          title: "Warning",
-          description: `Failed to delete ${failureCount} transaction${
-            failureCount !== 1 ? "s" : ""
-          }`,
-          variant: "destructive",
+          title: "Success",
+          description: "Transactions deleted successfully",
         });
       }
     } catch (error) {

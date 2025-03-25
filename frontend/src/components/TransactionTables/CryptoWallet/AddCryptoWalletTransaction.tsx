@@ -35,7 +35,6 @@ import * as z from "zod";
 import { CryptoWalletTransaction } from "@/types/Transaction";
 import { useParams } from "next/navigation";
 import { useAccounts } from "@/contexts/AccountsContext";
-import { createCryptoWalletTransaction } from "@/database/CryptoWalletTransactions";
 import { toast } from "@/hooks/use-toast";
 import React from "react";
 
@@ -79,7 +78,6 @@ export default function AddCryptoWalletTransaction({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const params = useParams();
   const accountId = params.id as string;
-  const { refreshAccounts } = useAccounts();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -149,28 +147,13 @@ export default function AddCryptoWalletTransaction({
         fee: feeValue || undefined,
       };
 
-      const txId = await createCryptoWalletTransaction(transactionData);
-
-      if (txId) {
-        // Refresh accounts to update balances
-        await refreshAccounts();
-
-        // Create the transaction object with the returned ID
-        const createdTransaction = {
-          ...transactionData,
-          id: txId,
-        } as CryptoWalletTransaction;
-
-        // Call the onTransactionAdd function from parent component
-        onTransactionAdd([createdTransaction]);
+      // Call the onTransactionAdd function from parent component
+      onTransactionAdd([transactionData as CryptoWalletTransaction]);
 
         toast({
           title: "Success",
           description: "Transaction added successfully",
-        });
-      } else {
-        throw new Error("Failed to add transaction");
-      }
+      });
 
       // Close the dialog and reset the form
       setOpen(false);

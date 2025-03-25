@@ -1,16 +1,12 @@
 "use client";
 
 import React from "react";
-import {
-  fetchBankAccountTransactions,
-  deleteBankTransaction,
-  updateBankTransaction,
-  deleteBankTransactionBatch,
-} from "@/database/Transactions";
+import { deleteBankTransactionBatch } from "@/database/Transactions";
 import TransactionTable from "../TransactionTable";
-import { BankAccountTransaction } from "@/types";
+import { AccountType, BankAccountTransaction } from "@/types";
 import { toast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { useAccounts } from "@/contexts/AccountsContext";
 
 interface BankTransactionTableProps {
   accountId: string;
@@ -21,6 +17,13 @@ export default function BankTransactionTable({
   accountId,
   title = "Bank Transactions",
 }: BankTransactionTableProps) {
+  const {
+    getTransactions,
+    deleteTransaction,
+    deleteBatchTransaction,
+    updateTransaction,
+    addTransactions,
+  } = useAccounts();
   const [transactions, setTransactions] = React.useState<
     BankAccountTransaction[]
   >([]);
@@ -28,13 +31,12 @@ export default function BankTransactionTable({
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   // Function to refresh transactions
-  const refreshTransactions = React.useCallback(async () => {
+  const refreshTransactions = React.useCallback(() => {
     if (!accountId) return;
 
     setLoading(true);
     try {
-      const data = await fetchBankAccountTransactions(accountId);
-      setTransactions(data);
+      setTransactions(getTransactions(AccountType.BANK, accountId));
     } catch (error) {
       console.error("Failed to load bank transactions:", error);
       toast({
@@ -45,7 +47,7 @@ export default function BankTransactionTable({
     } finally {
       setLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, getTransactions]);
 
   // Load transactions on mount and when accountId changes
   React.useEffect(() => {
@@ -61,11 +63,15 @@ export default function BankTransactionTable({
     });
 
     try {
-      const success = await deleteBankTransaction(transactionId);
+      const success = await deleteTransaction(
+        AccountType.BANK,
+        accountId,
+        transactionId
+      );
+
+      refreshTransactions();
 
       if (success) {
-        // Update local state to remove the deleted transaction
-        setTransactions((prev) => prev.filter((t) => t.id !== transactionId));
         toast({
           title: "Success",
           description: "Transaction deleted successfully",
@@ -114,13 +120,16 @@ export default function BankTransactionTable({
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { id, ...updates } = updated;
 
-      const success = await updateBankTransaction(original.id, updates);
+      const success = await updateTransaction(
+        AccountType.BANK,
+        accountId,
+        original.id,
+        { ...original, ...updates }
+      );
 
       if (success) {
         // Update local state with the edited transaction
-        setTransactions((prev) =>
-          prev.map((t) => (t.id === original.id ? { ...t, ...updated } : t))
-        );
+        refreshTransactions();
 
         toast({
           title: "Success",
@@ -147,7 +156,7 @@ export default function BankTransactionTable({
     newTransactions: BankAccountTransaction[]
   ) => {
     // Add the new transactions to the local state
-    setTransactions((prev) => [...prev, ...newTransactions]);
+    addTransactions(AccountType.BANK, accountId, newTransactions);
 
     // Refresh to ensure we have the latest data
     await refreshTransactions();
@@ -165,50 +174,64 @@ export default function BankTransactionTable({
       description: `Deleting ${selectedTransactions.length} transactions...`,
     });
 
-    try {
-      // Extract transaction IDs
-      const transactionIds = selectedTransactions.map(
-        (transaction) => transaction.id
-      );
+    console.log("Deleting transactions:", selectedTransactions);
 
-      // Use the batch delete function
-      const results = await deleteBankTransactionBatch(transactionIds);
-
-      // Count successful deletions
-      let successCount = 0;
-      const deletedIds: string[] = [];
-
-      // Process results
-      results.forEach((success, id) => {
-        if (success) {
-          successCount++;
-          deletedIds.push(id);
+    // Find the property that contains the ID
+    const transactionIds = selectedTransactions
+      .map((transaction) => {
+        // Log the first transaction to see its structure
+        if (selectedTransactions.indexOf(transaction) === 0) {
+          console.log(
+            "Transaction object structure:",
+            JSON.stringify(transaction)
+          );
         }
-      });
 
-      // Remove successfully deleted transactions from state
-      if (successCount > 0) {
-        setTransactions((prev) =>
-          prev.filter((t) => !deletedIds.includes(t.id))
-        );
+        // Check if the ID exists in the transaction object
+        if (transaction.id) {
+          return transaction.id;
+        } else {
+          // Look for an ID in a possible nested structure or with different naming
+          const possibleIdKeys = [
+            "id",
+            "transactionId",
+            "transaction_id",
+            "ID",
+          ];
+          for (const key of possibleIdKeys) {
+            // Use type assertion to handle the dynamic property access
+            const transactionAny = transaction as Record<string, any>;
+            if (transactionAny[key]) {
+              return transactionAny[key];
+            }
+          }
 
-        toast({
-          title: "Success",
-          description: `${successCount} transaction${
-            successCount !== 1 ? "s" : ""
-          } deleted successfully`,
-        });
+          console.error(
+            "Could not find ID in transaction object:",
+            transaction
+          );
+          return null;
+        }
+      })
+      .filter((id) => id !== null); // Remove any null IDs
+
+    try {
+      if (transactionIds.length === 0) {
+        throw new Error("No valid transaction IDs found");
       }
 
-      // Report failures if any
-      const failureCount = selectedTransactions.length - successCount;
-      if (failureCount > 0) {
+      const success = await deleteBatchTransaction(
+        AccountType.BANK,
+        accountId,
+        transactionIds as string[]
+      );
+
+      refreshTransactions();
+
+      if (success) {
         toast({
-          title: "Warning",
-          description: `Failed to delete ${failureCount} transaction${
-            failureCount !== 1 ? "s" : ""
-          }`,
-          variant: "destructive",
+          title: "Success",
+          description: "Transactions deleted successfully",
         });
       }
     } catch (error) {

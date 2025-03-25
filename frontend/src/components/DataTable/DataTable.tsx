@@ -101,6 +101,7 @@ export function DataTable<TData extends Record<string, any>, TValue>({
     ) {
       setIsDeletingMultiple(true);
       try {
+        // Pass the complete selected rows with their IDs to onMultiDelete
         await onMultiDelete(selectedRows);
         setRowSelection({});
       } catch (error) {

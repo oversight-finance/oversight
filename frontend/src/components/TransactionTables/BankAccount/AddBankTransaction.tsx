@@ -36,7 +36,6 @@ import { Switch } from "@/components/ui/switch";
 import { BankAccountTransaction } from "@/types";
 import { useParams } from "next/navigation";
 import { useAccounts } from "@/contexts/AccountsContext";
-import { createTransaction } from "@/database/Transactions";
 import { toast } from "@/hooks/use-toast";
 import React from "react";
 
@@ -180,8 +179,6 @@ export default function AddBankTransaction({
       const adjustedAmount =
         values.transactionType === "income" ? amountValue : -amountValue;
 
-      console.log("Calculated adjusted amount:", adjustedAmount);
-
       // Ensure date is properly formatted as ISO string for the database
       // This prevents browser timezone issues by setting the time to noon UTC
       const dateParts = values.date.split("-");
@@ -194,9 +191,6 @@ export default function AddBankTransaction({
         0
       ).toISOString();
 
-      console.log("Original date from form:", values.date);
-      console.log("Formatted date for API:", formattedDate);
-
       const baseTransactionData = {
         account_id: accountId as string,
         transaction_date: formattedDate,
@@ -205,38 +199,13 @@ export default function AddBankTransaction({
         category: values.category,
       };
 
-      console.log("Account ID from params:", accountId);
-      console.log("Prepared transaction data:", baseTransactionData);
+      // Call the onTransactionAdd function from parent component
+      onTransactionAdd([baseTransactionData as BankAccountTransaction]);
 
-      // Always create a single transaction for now
-      // Recurring functionality will be implemented later
-      console.log("About to call createTransaction API...");
-      const txId = await createTransaction(baseTransactionData);
-      console.log("API response - transaction ID:", txId);
-
-      if (txId) {
-        // Refresh accounts to update balances
-        console.log("Refreshing accounts...");
-        await refreshAccounts();
-
-        // Create the transaction object with the returned ID
-        const createdTransaction = {
-          ...baseTransactionData,
-          id: txId,
-        } as BankAccountTransaction;
-
-        // Call the onTransactionAdd function from parent component
-        console.log("Calling onTransactionAdd with:", createdTransaction);
-        onTransactionAdd([createdTransaction]);
-
-        toast({
-          title: "Success",
-          description: "Transaction added successfully",
-        });
-      } else {
-        console.error("No transaction ID returned from API");
-        throw new Error("Failed to add transaction");
-      }
+      toast({
+        title: "Success",
+        description: "Transaction added successfully",
+      });
 
       // Close the dialog and reset the form
       console.log("Closing dialog and resetting form");
