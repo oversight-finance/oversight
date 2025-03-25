@@ -7,6 +7,7 @@ import AccountBalance from "@/components/AccountBalance/AccountBalance";
 import { formatCurrency } from "@/lib/utils";
 import { AccountType, CryptoWalletWithTransactions } from "@/types";
 import CryptoWalletTransactionTable from "@/components/TransactionTables/CryptoWallet/CryptoWalletTransactionTable";
+import DeleteAccountAlert from "@/components/DeleteAccountAlert/DeleteAccountAlert";
 
 export default function CryptoWalletPage() {
   const { id } = useParams();
@@ -55,9 +56,11 @@ export default function CryptoWalletPage() {
             </p>
           )}
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
-          <div className="text-sm text-muted-foreground">Current Balance</div>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <div className="text-2xl font-bold">{formatCurrency(balance)}</div>
+            <div className="text-sm text-muted-foreground">Current Balance</div>
+          </div>
         </div>
       </div>
 
@@ -87,6 +90,14 @@ export default function CryptoWalletPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      <div className="flex justify-end">
+        <DeleteAccountAlert
+          accountId={id as string}
+          accountType={AccountType.CRYPTO}
+          accountName={cryptoWallet.account_name}
+        />
       </div>
     </div>
   );

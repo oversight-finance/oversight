@@ -255,35 +255,32 @@ export const updateCryptoWalletsBatch = async (
  */
 export const fetchCryptoWalletWithTransactions = async (
   accountId: string
-): Promise<CryptoWallet & { transactions: CryptoWalletTransaction[] } | null> => {
+): Promise<
+  (CryptoWallet & { transactions: CryptoWalletTransaction[] }) | null
+> => {
   if (!accountId) {
-    console.error("No account ID provided to fetchCryptoWalletWithTransactions");
+    console.error(
+      "No account ID provided to fetchCryptoWalletWithTransactions"
+    );
     return null;
   }
   try {
     const supabase = createClient();
 
-    // Fetch the account and its transactions in a single query with a join
+    // First, fetch the account data
     const { data, error } = await supabase
       .from("accounts")
       .select(
         `
         *,
-        crypto_wallets!inner(account_id, wallet_address, coin_symbol, balance),
-        crypto_wallet_transactions(*)
+        crypto_wallets!inner(account_id, wallet_address, coin_symbol, balance)
       `
       )
       .eq("id", accountId)
-      .order("crypto_wallet_transactions.transaction_date", {
-        ascending: false,
-      })
       .single();
 
     if (error) {
-      console.error(
-        "Error fetching crypto wallet with transactions:",
-        error.message
-      );
+      console.error("Error fetching crypto wallet:", error.message);
       return null;
     }
 
@@ -291,11 +288,39 @@ export const fetchCryptoWalletWithTransactions = async (
       return null;
     }
 
+    // Now fetch transactions separately
+    const { data: transactionsData, error: transactionsError } = await supabase
+      .from("crypto_wallet_transactions")
+      .select("*")
+      .eq("account_id", accountId)
+      .order("transaction_date", { ascending: false });
+
+    if (transactionsError) {
+      console.error(
+        `Error fetching transactions for crypto wallet ${accountId}:`,
+        transactionsError.message
+      );
+      // Return account with empty transactions
+      return {
+        ...data,
+        account_type: data.account_type as AccountType,
+        wallet_address: data.crypto_wallets.wallet_address,
+        coin_symbol: data.crypto_wallets.coin_symbol,
+        balance: data.crypto_wallets.balance,
+        transactions: [],
+      };
+    }
+
     // Restructure the data to match the expected CryptoWallet with transactions format
-    const cryptoWallet: CryptoWallet & { transactions: CryptoWalletTransaction[] } = {
+    const cryptoWallet: CryptoWallet & {
+      transactions: CryptoWalletTransaction[];
+    } = {
       ...data,
       account_type: data.account_type as AccountType,
-      transactions: data.crypto_wallet_transactions as CryptoWalletTransaction[],
+      wallet_address: data.crypto_wallets.wallet_address,
+      coin_symbol: data.crypto_wallets.coin_symbol,
+      balance: data.crypto_wallets.balance,
+      transactions: transactionsData as CryptoWalletTransaction[],
     };
 
     return cryptoWallet;
@@ -314,7 +339,9 @@ export const fetchCryptoWalletWithTransactions = async (
 export const fetchCryptoWalletsWithTransactions = async (
   user_id: string,
   dateRange?: { start: Date; end: Date }
-): Promise<Record<string, CryptoWallet & { transactions: CryptoWalletTransaction[] }>> => {
+): Promise<
+  Record<string, CryptoWallet & { transactions: CryptoWalletTransaction[] }>
+> => {
   const supabase = createClient();
 
   if (!user_id) {
@@ -361,8 +388,10 @@ export const fetchCryptoWalletsWithTransactions = async (
         }
 
         // Execute the query with ordering
-        const { data: transactionsData, error: transactionsError } = await transactionsQuery
-          .order("transaction_date", { ascending: false });
+        const { data: transactionsData, error: transactionsError } =
+          await transactionsQuery.order("transaction_date", {
+            ascending: false,
+          });
 
         const { account_id, ...cryptoWalletWithoutId } = account.crypto_wallets;
         const { crypto_wallets, ...accountWithoutCryptoWallet } = account;
@@ -394,14 +423,22 @@ export const fetchCryptoWalletsWithTransactions = async (
     );
 
     // Convert array to Record<string, CryptoWallet & { transactions: CryptoWalletTransaction[] }>
-    const accountsRecord: Record<string, CryptoWallet & { transactions: CryptoWalletTransaction[] }> = {};
+    const accountsRecord: Record<
+      string,
+      CryptoWallet & { transactions: CryptoWalletTransaction[] }
+    > = {};
     for (const account of accountsWithTransactions) {
-      accountsRecord[account.id] = account as CryptoWallet & { transactions: CryptoWalletTransaction[] };
+      accountsRecord[account.id] = account as CryptoWallet & {
+        transactions: CryptoWalletTransaction[];
+      };
     }
 
     return accountsRecord;
   } catch (error) {
-    console.error("Exception fetching crypto wallets with transactions:", error);
+    console.error(
+      "Exception fetching crypto wallets with transactions:",
+      error
+    );
     return {};
   }
 };
