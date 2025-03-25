@@ -2,6 +2,8 @@ import { type EmailOtpType } from "@supabase/supabase-js";
 import { type NextRequest } from "next/server";
 import { createClient } from "@/utils/supabase/server";
 import { redirect } from "next/navigation";
+import { checkUserExists } from "@/database/Users";
+import { createUser } from "@/database/Users";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,6 +25,22 @@ export async function GET(request: NextRequest) {
       // when a new auth.users record is created
       
       // redirect user to specified redirect URL or root of app
+      // Check if the user exists in our database, if not create them
+      if (data?.user) {
+        const userExists = await checkUserExists(data.user.id);
+        
+        if (!userExists) {
+          // Create a new user record in our database
+          const userData = {
+            id: data.user.id,
+            email: data.user.email || "",
+            first_name: data.user.user_metadata?.first_name || "",
+            last_name: data.user.user_metadata?.last_name || "",
+          };
+          
+          await createUser(userData);
+        }
+      }
       redirect(next);
     }
   }

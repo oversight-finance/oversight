@@ -85,7 +85,6 @@ export const createUser = async (user: CreateUserData): Promise<boolean> => {
         first_name: user.first_name || null,
         last_name: user.last_name || null,
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
       },
     ]);
 
