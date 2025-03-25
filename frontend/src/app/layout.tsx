@@ -61,6 +61,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+        {process.env.NODE_ENV === 'production' && (
+          <>
+            <Analytics />
+            <SpeedInsights />
+          </>
+        )}
         <AuthProvider>
           <AccountsProvider>
             <AssetsProvider>
