@@ -108,273 +108,339 @@ export default function Dashboard() {
         return { date, amount };
       }) || [];
 
-    // Determine start and end dates for the data points
+    // Determine end date (current date) and start date based on selected time range
     const endDate = new Date();
+    endDate.setHours(23, 59, 59, 999);
+
     let startDate: Date;
-
-    // Set start date based on selected time range
     if (selectedTimeRange === "ALL") {
-      // Find the earliest date among transactions and asset purchases
-      let earliestDate: Date | null = null;
+      // Find earliest date among transactions and assets
+      startDate = new Date(endDate);
+      startDate.setFullYear(startDate.getFullYear() - 10); // Default 10 years back
 
-      // Check transactions
+      // Check transactions for earlier dates
       if (allTransactions.length > 0) {
-        earliestDate = new Date(
-          allTransactions[allTransactions.length - 1].date
-        );
+        const firstTransactionDate = allTransactions[0].date;
+        if (firstTransactionDate < startDate) {
+          startDate = firstTransactionDate;
+        }
       }
 
-      // Check asset purchase dates
+      // Check assets for earlier purchase dates
       assets.forEach((asset) => {
-        let purchaseDate: Date | null = null;
-
-        if ("make" in asset && "model" in asset) {
-          if (asset.purchase_date) {
-            purchaseDate = new Date(asset.purchase_date);
+        if (asset.purchase_date) {
+          const purchaseDate = new Date(asset.purchase_date);
+          if (purchaseDate < startDate) {
+            startDate = purchaseDate;
           }
-        } else if ("property_type" in asset && "address" in asset) {
-          if (asset.purchase_date) {
-            purchaseDate = new Date(asset.purchase_date);
-          }
-        } else {
-          const genericAsset = asset as { purchase_date?: string };
-          if (genericAsset.purchase_date) {
-            purchaseDate = new Date(genericAsset.purchase_date);
-          }
-        }
-
-        if (purchaseDate && (!earliestDate || purchaseDate < earliestDate)) {
-          earliestDate = purchaseDate;
         }
       });
-
-      // If we found an earliest date, use it, otherwise default to 10 years ago
-      if (earliestDate) {
-        startDate = earliestDate;
-      } else {
-        startDate = new Date(endDate);
-        startDate.setFullYear(startDate.getFullYear() - 10); // Default to 10 years ago if no data
-      }
     } else {
-      // For specific time ranges, calculate from current date
+      // Set start date based on time range selection
       startDate = new Date(endDate);
       const monthsToGoBack = getTimeRangeMonths(selectedTimeRange);
       startDate.setMonth(startDate.getMonth() - monthsToGoBack);
+
+      // For 1-month view, ensure we get the whole month
+      if (selectedTimeRange === "1M") {
+        startDate.setDate(1); // Set to first day of month
+      }
     }
 
-    // For weekly data points, keep day of week; for monthly, set to beginning of month
-    if (!shouldUseWeeklyPoints(selectedTimeRange)) {
-      startDate.setDate(1);
-    } else {
-      // Align to start of week (Sunday)
-      const day = startDate.getDay();
-      startDate.setDate(startDate.getDate() - day);
-    }
     startDate.setHours(0, 0, 0, 0);
 
-    // Process assets
-    const assetsData = assets
-      .map((asset) => {
-        // Extract asset details based on type
-        let purchaseDate: Date | null = null;
-        let purchaseValue: number | null = null;
-        let growthRate: number = 0;
+    // 1. Generate asset data points month by month from purchase date
+    const assetDataPoints: { assetId: string; date: Date; value: number }[] =
+      [];
 
-        // Use proper type checking for Vehicle assets
-        if ("make" in asset && "model" in asset) {
-          const vehicleAsset = asset as Vehicle;
-          if (vehicleAsset.purchase_date && vehicleAsset.purchase_price) {
-            purchaseDate = new Date(vehicleAsset.purchase_date);
-            purchaseValue = vehicleAsset.purchase_price;
-            growthRate =
-              vehicleAsset.annual_growth_rate !== undefined
-                ? vehicleAsset.annual_growth_rate
-                : -15; // Default depreciation rate
-          }
+    // Process each asset to generate monthly data points
+    assets.forEach((asset, index) => {
+      const assetId = asset.id || `asset-${index}`;
+      let purchaseDate: Date | null = null;
+      let purchaseValue: number | null = null;
+      let growthRate: number = 0;
+
+      // Extract asset details based on type
+      if ("make" in asset && "model" in asset) {
+        // Vehicle asset
+        const vehicleAsset = asset as Vehicle;
+        if (vehicleAsset.purchase_date && vehicleAsset.purchase_price) {
+          purchaseDate = new Date(vehicleAsset.purchase_date);
+          purchaseValue = vehicleAsset.purchase_price;
+          growthRate = vehicleAsset.annual_growth_rate ?? -15; // Default -15% depreciation
         }
-        // Use proper type checking for RealEstate assets
-        else if ("property_type" in asset && "address" in asset) {
-          const realEstateAsset = asset as RealEstate;
-          if (realEstateAsset.purchase_date && realEstateAsset.purchase_price) {
-            purchaseDate = new Date(realEstateAsset.purchase_date);
-            purchaseValue = realEstateAsset.purchase_price;
-            growthRate =
-              realEstateAsset.annual_growth_rate !== undefined
-                ? realEstateAsset.annual_growth_rate
-                : 3; // Default appreciation rate
-          }
+      } else if ("property_type" in asset && "address" in asset) {
+        // Real estate asset
+        const realEstateAsset = asset as RealEstate;
+        if (realEstateAsset.purchase_date && realEstateAsset.purchase_price) {
+          purchaseDate = new Date(realEstateAsset.purchase_date);
+          purchaseValue = realEstateAsset.purchase_price;
+          growthRate = realEstateAsset.annual_growth_rate ?? 3; // Default 3% appreciation
         }
-        // Handle other asset types
-        else {
-          // Use type assertion for generic asset properties
-          const genericAsset = asset as {
-            purchase_date?: string;
-            purchase_price?: number;
-            asset_type?: AssetType;
-            annual_growth_rate?: number;
-          };
-
-          if (genericAsset.purchase_date && genericAsset.purchase_price) {
-            purchaseDate = new Date(genericAsset.purchase_date);
-            purchaseValue = genericAsset.purchase_price;
-            growthRate =
-              genericAsset.annual_growth_rate !== undefined
-                ? genericAsset.annual_growth_rate
-                : 0;
-          }
-        }
-
-        if (!purchaseDate || !purchaseValue) return null;
-
-        // Get the asset values for all relevant months
-        const assetValueData = calculateAssetGrowth(
-          purchaseValue,
-          growthRate,
-          getTimeRangeMonths(selectedTimeRange) + 12, // Add buffer for calculations
-          purchaseDate.toISOString()
-        );
-
-        return {
-          purchaseDate,
-          assetValueData,
+      } else {
+        // Generic asset
+        const genericAsset = asset as {
+          purchase_date?: string;
+          purchase_price?: number;
+          annual_growth_rate?: number;
         };
-      })
-      .filter(Boolean); // Filter out null values
 
-    // Generate data points (monthly or weekly, working backwards)
-    const dataPoints: { date: Date; netWorth: number }[] = [];
-
-    // Current date (we'll work backwards from here)
-    let currentDate = new Date(endDate);
-
-    // For weekly data, align to start of the week (Sunday)
-    if (shouldUseWeeklyPoints(selectedTimeRange)) {
-      const day = currentDate.getDay();
-      currentDate.setDate(currentDate.getDate() - day);
-    } else {
-      // For monthly data, set to first of month
-      currentDate.setDate(1);
-    }
-    currentDate.setHours(0, 0, 0, 0);
-
-    // Create function to calculate asset value for a specific date
-    const calculateTotalAssetValueAtDate = (date: Date): number => {
-      // Create a date for the last day of the given month
-      const lastDayOfMonth = new Date(date);
-      lastDayOfMonth.setMonth(lastDayOfMonth.getMonth() + 1);
-      lastDayOfMonth.setDate(0); // Setting to 0 gives us the last day of the previous month
-
-      return assetsData.reduce((sum, assetData) => {
-        if (!assetData) return sum;
-
-        // Check if asset purchase date is within or before this month
-        // We compare with the last day of the month to include any asset purchased during the month
-        if (assetData.purchaseDate > lastDayOfMonth) return sum;
-
-        // Find correct month value
-        const dateYearMonth = date.toISOString().split("T")[0].substring(0, 7);
-        const matchingValue = assetData.assetValueData.find(
-          (mv) => mv.month === dateYearMonth
-        );
-
-        if (matchingValue) {
-          return sum + matchingValue.value;
-        } else {
-          // If no exact match, find closest earlier month
-          const closestValue = assetData.assetValueData
-            .filter((mv) => mv.month <= dateYearMonth)
-            .sort((a, b) => b.month.localeCompare(a.month))[0];
-
-          if (closestValue) {
-            return sum + closestValue.value;
-          }
+        if (genericAsset.purchase_date && genericAsset.purchase_price) {
+          purchaseDate = new Date(genericAsset.purchase_date);
+          purchaseValue = genericAsset.purchase_price;
+          growthRate = genericAsset.annual_growth_rate ?? 0;
         }
-        return sum;
-      }, 0);
-    };
+      }
 
-    // Reset the networth calculation
-    // Start with current date's networth
-    let currentNetWorth =
-      getCombinedBalances() + calculateTotalAssetValueAtDate(currentDate);
+      if (!purchaseDate || !purchaseValue) return;
 
-    // Add the current data point
-    dataPoints.push({
-      date: new Date(currentDate),
-      netWorth: currentNetWorth,
+      // Skip if purchase date is after our end date
+      if (purchaseDate > endDate) return;
+
+      // Calculate monthly growth rate
+      const monthlyGrowthRate = Math.pow(1 + growthRate / 100, 1 / 12) - 1;
+
+      // Start with purchase date and value
+      let currentDate = new Date(purchaseDate);
+      currentDate.setHours(0, 0, 0, 0);
+      let currentValue = purchaseValue;
+
+      // Add initial data point at purchase date
+      assetDataPoints.push({
+        assetId,
+        date: new Date(currentDate),
+        value: currentValue,
+      });
+
+      // Generate monthly data points until end date
+      while (true) {
+        // Move to next month
+        const nextDate = new Date(currentDate);
+        nextDate.setMonth(nextDate.getMonth() + 1);
+
+        // Stop if we've gone beyond the end date
+        if (nextDate > endDate) break;
+
+        // Apply monthly growth
+        currentValue = currentValue * (1 + monthlyGrowthRate);
+
+        // Fix floating point imprecision - round extremely small values to 0
+        if (Math.abs(currentValue) < 0.01) {
+          currentValue = 0;
+        }
+
+        // Add data point
+        assetDataPoints.push({
+          assetId,
+          date: new Date(nextDate),
+          value: currentValue,
+        });
+
+        currentDate = nextDate;
+      }
     });
 
-    // Work backwards month by month or week by week until we reach the start date
-    while (true) {
-      // Move to previous period (month or week)
-      if (shouldUseWeeklyPoints(selectedTimeRange)) {
-        currentDate.setDate(currentDate.getDate() - 7); // One week back
-      } else {
-        currentDate.setMonth(currentDate.getMonth() - 1); // One month back
+    // 2. Combine all events (transactions and asset value changes) in chronological order
+    // First, build an asset value map by date
+    const assetValuesByDate = new Map<string, Map<string, number>>();
+
+    assetDataPoints.forEach((point) => {
+      const dateStr = point.date.toISOString().split("T")[0]; // YYYY-MM-DD
+
+      if (!assetValuesByDate.has(dateStr)) {
+        assetValuesByDate.set(dateStr, new Map<string, number>());
       }
 
-      // If we've gone past the start date, we're done
-      if (currentDate < startDate) {
-        break;
+      assetValuesByDate.get(dateStr)!.set(point.assetId, point.value);
+    });
+
+    console.log("assetDatePoints", assetDataPoints);
+    // Create events array combining transactions and dates with asset changes
+    type Event = {
+      date: Date;
+      type: "transaction" | "asset_change";
+      transactionAmount?: number;
+    };
+
+    const events: Event[] = [];
+
+    // Add transactions as events
+    allTransactions.forEach((transaction) => {
+      if (transaction.date >= startDate && transaction.date <= endDate) {
+        events.push({
+          date: new Date(transaction.date),
+          type: "transaction",
+          transactionAmount: transaction.amount,
+        });
+      }
+    });
+
+    // Add asset value change dates as events
+    Array.from(assetValuesByDate.keys()).forEach((dateStr) => {
+      const date = new Date(dateStr);
+      if (date >= startDate && date <= endDate) {
+        events.push({
+          date,
+          type: "asset_change",
+        });
+      }
+    });
+
+    // Add current date as an event to ensure we have the most recent data point
+    events.push({
+      date: new Date(endDate),
+      type: "asset_change",
+    });
+
+    // Sort events by date, most recent first (since we're working backwards)
+    events.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    // Combine events on the same day
+    const uniqueDateEvents: Event[] = [];
+    const processedDates = new Set<string>();
+
+    events.forEach((event) => {
+      const dateStr = event.date.toISOString().split("T")[0];
+      if (!processedDates.has(dateStr)) {
+        uniqueDateEvents.push(event);
+        processedDates.add(dateStr);
+      }
+    });
+
+    // 3. Calculate networth points working backwards from current
+    const networthPoints: NetWorthDataPoint[] = [];
+
+    // Get the current total account balance
+    const currentAccountsTotal = getCombinedBalances();
+
+    // Calculate current total asset value
+    let currentAssetsTotal = 0;
+
+    // For each asset, find its most recent value
+    const assetIds = new Set<string>();
+    assetDataPoints.forEach((point) => assetIds.add(point.assetId));
+
+    // Create a map to track purchase dates by asset ID
+    const assetPurchaseDates = new Map<string, Date>();
+    assets.forEach((asset, index) => {
+      const assetId = asset.id || `asset-${index}`;
+      if (asset.purchase_date) {
+        assetPurchaseDates.set(assetId, new Date(asset.purchase_date));
+      }
+    });
+
+    // Get current asset values (most recent for each asset)
+    const currentAssetValues = new Map<string, number>();
+    assetIds.forEach((assetId) => {
+      // Find the most recent value for this asset
+      const assetPoints = assetDataPoints
+        .filter((point) => point.assetId === assetId && point.date <= endDate)
+        .sort((a, b) => b.date.getTime() - a.date.getTime());
+
+      if (assetPoints.length > 0) {
+        const latestValue = assetPoints[0].value;
+        currentAssetValues.set(assetId, latestValue);
+        currentAssetsTotal += latestValue;
+      }
+    });
+
+    // Current total networth is sum of accounts and assets
+    let runningNetWorth = currentAccountsTotal + currentAssetsTotal;
+
+    // Start with the current networth
+    networthPoints.push({
+      date: new Date(endDate),
+      netWorth: runningNetWorth,
+    });
+
+    // Track the assets we've already accounted for (removed value when crossing purchase date)
+    const assetsRemoved = new Set<string>();
+
+    // Track the current asset values as we move backwards in time
+    const currentAssetValuesAtTime = new Map<string, number>(
+      currentAssetValues
+    );
+
+    // Work backwards through events
+    for (let i = 0; i < uniqueDateEvents.length; i++) {
+      const event = uniqueDateEvents[i];
+      const dateStr = event.date.toISOString().split("T")[0];
+      const eventDate = new Date(dateStr);
+
+      // Skip the most recent date which we've already processed
+      if (i === 0) continue;
+
+      if (event.type === "transaction" && event.transactionAmount) {
+        // For a transaction, reverse its effect on the running networth
+        runningNetWorth -= event.transactionAmount;
       }
 
-      // For monthly data points
-      const currentPeriodStart = new Date(currentDate);
-      let nextPeriodStart;
+      // Update asset values for this specific date
+      assetIds.forEach((assetId) => {
+        const purchaseDate = assetPurchaseDates.get(assetId);
 
-      if (shouldUseWeeklyPoints(selectedTimeRange)) {
-        nextPeriodStart = new Date(currentDate);
-        nextPeriodStart.setDate(nextPeriodStart.getDate() + 7);
-      } else {
-        nextPeriodStart = new Date(currentDate);
-        nextPeriodStart.setMonth(nextPeriodStart.getMonth() + 1);
-      }
+        // Skip assets that have been removed already
+        if (assetsRemoved.has(assetId)) return;
 
-      // Format the date range strings for filtering transactions
-      const currentPeriodStr = currentPeriodStart.toISOString().split("T")[0];
-      const nextPeriodStr = nextPeriodStart.toISOString().split("T")[0];
-
-      // Find transactions that happened in the next period (since we're working backwards)
-      const periodTransactions = allTransactions.filter((transaction) => {
-        const transactionStr = transaction.date.toISOString().split("T")[0];
-        return (
-          transactionStr >= currentPeriodStr && transactionStr < nextPeriodStr
-        );
+        // If we have crossed before the purchase date, remove the asset entirely
+        if (purchaseDate && eventDate < purchaseDate) {
+          // Get the current value of this asset and remove it
+          const assetValue = currentAssetValuesAtTime.get(assetId) || 0;
+          runningNetWorth -= assetValue;
+          // Mark as removed so we don't process it again
+          assetsRemoved.add(assetId);
+          currentAssetValuesAtTime.delete(assetId);
+        } else {
+          // If we're still after purchase date, find the specific value for this date
+          const assetValuesMap = assetValuesByDate.get(dateStr);
+          if (assetValuesMap && assetValuesMap.has(assetId)) {
+            // Asset has a value for this exact date - update the asset value
+            const oldValue = currentAssetValuesAtTime.get(assetId) || 0;
+            const newValue = assetValuesMap.get(assetId) || 0;
+            // Adjust running networth by the difference
+            runningNetWorth -= oldValue - newValue;
+            // Update the current value for this asset
+            currentAssetValuesAtTime.set(assetId, newValue);
+          }
+        }
       });
 
-      // Calculate the total transaction amount for the next period
-      const periodTransactionSum = periodTransactions.reduce(
-        (sum, transaction) => sum + transaction.amount,
-        0
-      );
-
-      // Remove the next period's transactions from current networth
-      currentNetWorth -= periodTransactionSum;
-
-      // Rather than incrementally adjusting asset values, recalculate total asset value at this point
-      // This ensures correct handling of assets purchased in the future
-      const nextPeriodAssetValue =
-        calculateTotalAssetValueAtDate(nextPeriodStart);
-      const currentPeriodAssetValue =
-        calculateTotalAssetValueAtDate(currentPeriodStart);
-
-      // When working backwards, we remove the asset value change from next period to current period
-      currentNetWorth -= nextPeriodAssetValue - currentPeriodAssetValue;
-
-      // Add data point for this period
-      dataPoints.push({
-        date: new Date(currentDate),
-        netWorth: currentNetWorth,
+      // Add a data point for this date
+      networthPoints.push({
+        date: event.date,
+        netWorth: runningNetWorth,
       });
     }
 
-    // Reverse the array to get ascending date order
-    dataPoints.reverse();
+    // Reverse array to get chronological order
+    networthPoints.reverse();
 
-    // Sort by date (should already be sorted, but just to be safe)
-    dataPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
+    let filteredPoints = [...networthPoints];
 
-    setNetworthData(dataPoints);
+    // Simple filtering based on time range
+    if (selectedTimeRange === "ALL") {
+      // For ALL time range, simply remove any initial zero points
+      // Find first non-zero point
+      const firstNonZeroIndex = filteredPoints.findIndex(
+        (point) => Math.abs(point.netWorth) > 0.01
+      );
+      if (firstNonZeroIndex > 0) {
+        filteredPoints = filteredPoints.slice(firstNonZeroIndex);
+      }
+    } else if (selectedTimeRange === "1M") {
+      // Filter for current month if needed
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+
+      filteredPoints = filteredPoints.filter((point) => {
+        const pointMonth = point.date.getMonth();
+        const pointYear = point.date.getFullYear();
+        return pointMonth === currentMonth && pointYear === currentYear;
+      });
+    }
+
+    // Set the networth data state with our filtered points
+    setNetworthData(filteredPoints);
   };
 
   // Use useEffect to recalculate networth when accounts, assets, or time range changes
@@ -382,7 +448,7 @@ export default function Dashboard() {
     calculateNetworth();
   }, [accounts, assets, selectedTimeRange]);
 
-  // No need to filter the data again as we're already calculating it for the specific time range
+  // No filtering needed since the calculation already handles time ranges
   const filteredNetworthData = networthData;
 
   // Check if we should show the empty state message
