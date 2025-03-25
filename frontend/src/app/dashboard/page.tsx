@@ -108,11 +108,6 @@ export default function Dashboard() {
         return { date, amount };
       }) || [];
 
-    // Sort transactions by date (oldest first)
-    const allTransactionsSorted = [...allTransactions].sort(
-      (a, b) => a.date.getTime() - b.date.getTime()
-    );
-
     // Determine end date (current date) and start date based on selected time range
     const endDate = new Date();
     endDate.setHours(23, 59, 59, 999);
@@ -124,8 +119,8 @@ export default function Dashboard() {
       startDate.setFullYear(startDate.getFullYear() - 10); // Default 10 years back
 
       // Check transactions for earlier dates
-      if (allTransactionsSorted.length > 0) {
-        const firstTransactionDate = allTransactionsSorted[0].date;
+      if (allTransactions.length > 0) {
+        const firstTransactionDate = allTransactions[0].date;
         if (firstTransactionDate < startDate) {
           startDate = firstTransactionDate;
         }
