@@ -50,6 +50,7 @@ const chartConfig = {
 
 interface NetworthProps {
   data: NetWorthDataPoint[];
+  timeRange?: "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL";
 }
 
 const formatLargeNumber = (value: number) => {
@@ -62,8 +63,17 @@ const formatLargeNumber = (value: number) => {
   return `$${value}`;
 };
 
-const formatAxisDate = (date: Date, data: NetWorthDataPoint[]) => {
-  // Calculate the total time span in months
+const formatAxisDate = (
+  date: Date,
+  data: NetWorthDataPoint[],
+  timeRange: string
+) => {
+  // For 1M and 3M time ranges, always show month abbreviation and day number
+  if (timeRange === "1M" || timeRange === "3M") {
+    return date.toLocaleString("default", { month: "short", day: "numeric" });
+  }
+
+  // For longer periods, calculate whether to show year
   const firstDate = data[0].date;
   const lastDate = data[data.length - 1].date;
   const monthsDiff =
@@ -72,15 +82,15 @@ const formatAxisDate = (date: Date, data: NetWorthDataPoint[]) => {
     firstDate.getMonth();
 
   if (monthsDiff > 12) {
-    // For periods longer than a year, show "Jan 2023" format with 4-digit year
+    // For periods longer than a year, show "Jan 2023" format with year
     return date.toLocaleString("default", { month: "short", year: "numeric" });
   } else {
-    // For shorter periods, show just "January"
+    // For medium periods, show just month abbreviation
     return date.toLocaleString("default", { month: "short" });
   }
 };
 
-export default function Networth({ data }: NetworthProps) {
+export default function Networth({ data, timeRange = "1Y" }: NetworthProps) {
   if (data.length === 0) {
     return (
       <div className="space-y-4">
@@ -88,7 +98,10 @@ export default function Networth({ data }: NetworthProps) {
           <CardHeader>
             <CardTitle>Net Worth Over Time</CardTitle>
             <CardDescription>
-              Tracking your financial progress month by month
+              Tracking your financial progress{" "}
+              {timeRange === "1M" || timeRange === "3M"
+                ? "week by week"
+                : "month by month"}
             </CardDescription>
           </CardHeader>
           <CardContent className="h-[300px] flex items-center justify-center text-muted-foreground">
@@ -110,6 +123,12 @@ export default function Networth({ data }: NetworthProps) {
 
   const startDate = data[0].date;
   const endDate = data[data.length - 1].date;
+
+  // Calculate time span in days for determining axis interval
+  const daysDiff = Math.round(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
   const dateRange = `${startDate.toLocaleString("default", {
     month: "long",
   })} - ${endDate.toLocaleString("default", {
@@ -145,7 +164,10 @@ export default function Networth({ data }: NetworthProps) {
           </span>
         </div>
         <CardDescription>
-          Tracking your financial progress month by month
+          Tracking your financial progress{" "}
+          {timeRange === "1M" || timeRange === "3M"
+            ? "week by week"
+            : "month by month"}
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -188,8 +210,14 @@ export default function Networth({ data }: NetworthProps) {
                     tickLine={false}
                     axisLine={true}
                     tickMargin={8}
-                    tickFormatter={(date) => formatAxisDate(date, data)}
+                    tickFormatter={(date) =>
+                      formatAxisDate(date, data, timeRange)
+                    }
                     interval="preserveStartEnd"
+                    minTickGap={
+                      timeRange === "1M" || timeRange === "3M" ? 25 : 15
+                    }
+                    stroke="hsl(var(--border))"
                   />
                   <YAxis
                     tickFormatter={formatLargeNumber}

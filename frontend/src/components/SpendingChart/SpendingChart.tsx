@@ -13,7 +13,7 @@ import { useAccounts } from "@/contexts/AccountsContext";
 import { AccountType } from "@/types/Account";
 
 interface SpendingChartProps {
-  timeRange?: "3M" | "6M" | "1Y" | "2Y" | "ALL";
+  timeRange?: "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL";
 }
 
 interface SpendingData {
@@ -64,14 +64,16 @@ const CustomTooltip = ({ active, payload }: any) => {
 // Helper function to filter transactions by time range
 const filterTransactionsByTimeRange = (
   transactions: any[],
-  timeRange: "3M" | "6M" | "1Y" | "2Y" | "ALL"
+  timeRange: "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL"
 ) => {
   if (timeRange === "ALL") return transactions;
 
   // Get current date
   const now = new Date();
   const monthsToInclude =
-    timeRange === "3M"
+    timeRange === "1M"
+      ? 1
+      : timeRange === "3M"
       ? 3
       : timeRange === "6M"
       ? 6

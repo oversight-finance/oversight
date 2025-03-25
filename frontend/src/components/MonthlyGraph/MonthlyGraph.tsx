@@ -21,7 +21,7 @@ interface DataPoint {
 
 interface MonthlyGraphProps {
   type: "income" | "spending";
-  timeRange?: "3M" | "6M" | "1Y" | "2Y" | "ALL";
+  timeRange?: "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL";
 }
 
 const CHART_CONFIGS = {
@@ -46,14 +46,16 @@ const CHART_CONFIGS = {
 // Helper function to filter data by time range
 const filterDataByTimeRange = (
   data: DataPoint[],
-  timeRange: "3M" | "6M" | "1Y" | "2Y" | "ALL"
+  timeRange: "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL"
 ) => {
   if (!data.length || timeRange === "ALL") return data;
 
   // Get current date
   const now = new Date();
   const monthsToInclude =
-    timeRange === "3M"
+    timeRange === "1M"
+      ? 1
+      : timeRange === "3M"
       ? 3
       : timeRange === "6M"
       ? 6
@@ -69,8 +71,19 @@ const filterDataByTimeRange = (
   return data.filter((point) => point.date >= cutoffDate);
 };
 
-const formatAxisDate = (date: Date) => {
+const formatAxisDate = (date: Date, timeRange: string) => {
+  if (timeRange === "1M" || timeRange === "3M") {
+    return date.toLocaleString("default", { month: "short", day: "numeric" });
+  }
   return date.toLocaleString("default", { month: "short" });
+};
+
+// Format currency for Y-axis
+const formatYAxisValue = (value: number) => {
+  if (value >= 1000) {
+    return `$${(value / 1000).toFixed(0)}k`;
+  }
+  return `$${value}`;
 };
 
 export default function MonthlyGraph({
@@ -88,27 +101,66 @@ export default function MonthlyGraph({
       amount: config.transformAmount(transaction.amount),
     }));
 
-  // Calculate total
-  const total = allTransactions.reduce((sum, t) => sum + t.amount, 0);
+  // Filter transactions by time range
+  const filteredTransactions =
+    timeRange === "ALL"
+      ? allTransactions
+      : allTransactions.filter((transaction) => {
+          // Get current date
+          const now = new Date();
+          const monthsToInclude =
+            timeRange === "1M"
+              ? 1
+              : timeRange === "3M"
+              ? 3
+              : timeRange === "6M"
+              ? 6
+              : timeRange === "1Y"
+              ? 12
+              : 24;
+
+          // Calculate cutoff date
+          const cutoffDate = new Date(now);
+          cutoffDate.setMonth(now.getMonth() - monthsToInclude);
+
+          return transaction.date >= cutoffDate;
+        });
+
+  // Calculate total from filtered transactions only
+  const total = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
   const displayTotal = type === "spending" ? -total : total;
 
-  // Group transactions by month
-  const monthlyData = allTransactions.reduce((acc, transaction) => {
-    const monthKey = transaction.date.toISOString().slice(0, 7);
-    if (!acc[monthKey]) {
-      acc[monthKey] = { value: 0, date: transaction.date };
+  // Group transactions by period (month or week based on timeRange)
+  const groupedData = filteredTransactions.reduce((acc, transaction) => {
+    let periodKey;
+
+    if (timeRange === "1M" || timeRange === "3M") {
+      // For short ranges, group by week
+      const date = transaction.date;
+      // Get the week start date (Sunday)
+      const day = date.getDay();
+      const weekStart = new Date(date);
+      weekStart.setDate(date.getDate() - day);
+      periodKey = weekStart.toISOString().slice(0, 10); // YYYY-MM-DD format
+    } else {
+      // For longer ranges, group by month
+      periodKey = transaction.date.toISOString().slice(0, 7); // YYYY-MM format
     }
-    acc[monthKey].value += transaction.amount;
+
+    if (!acc[periodKey]) {
+      acc[periodKey] = { value: 0, date: new Date(transaction.date) };
+    }
+    acc[periodKey].value += transaction.amount;
     return acc;
   }, {} as Record<string, DataPoint>);
 
   // Convert to array and sort by date
-  let chartData = (Object.values(monthlyData) as DataPoint[]).sort(
+  let chartData = (Object.values(groupedData) as DataPoint[]).sort(
     (a, b) => a.date.getTime() - b.date.getTime()
   );
 
-  // Apply time range filtering
-  chartData = filterDataByTimeRange(chartData, timeRange);
+  // We don't need to filter chartData again since we already filtered the transactions
+  // chartData = filterDataByTimeRange(chartData, timeRange);
 
   if (chartData.length === 0) {
     return (
@@ -132,6 +184,13 @@ export default function MonthlyGraph({
     );
   }
 
+  // Calculate days span for determining axis settings
+  const startDate = chartData[0].date;
+  const endDate = chartData[chartData.length - 1].date;
+  const daysDiff = Math.round(
+    (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+  );
+
   return (
     <Card className="min-w-0 w-full">
       <CardHeader className="pb-2">
@@ -150,7 +209,7 @@ export default function MonthlyGraph({
       </CardHeader>
       <CardContent className="p-0">
         <div className="w-full h-[180px] flex items-center justify-center">
-          <div className="w-full h-[160px] px-6 py-4">
+          <div className="w-full h-[160px] px-6 py-2 pb-0">
             <ChartContainer
               config={{ [type]: config }}
               className="w-full h-full"
@@ -158,7 +217,7 @@ export default function MonthlyGraph({
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart
                   data={chartData}
-                  margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+                  margin={{ top: 10, right: 10, left: 10, bottom: 0 }}
                 >
                   <defs>
                     <linearGradient
@@ -182,18 +241,26 @@ export default function MonthlyGraph({
                   </defs>
                   <XAxis
                     dataKey="date"
-                    axisLine={false}
+                    axisLine={true}
                     tickLine={false}
-                    tick={false}
-                    height={0}
+                    tick={{ fontSize: 10 }}
+                    height={30}
+                    tickFormatter={(date) => formatAxisDate(date, timeRange)}
+                    interval={daysDiff <= 90 ? "preserveStartEnd" : 0}
+                    minTickGap={15}
+                    stroke="hsl(var(--border))"
                   />
                   <YAxis
-                    axisLine={false}
+                    axisLine={true}
                     tickLine={false}
-                    tick={false}
-                    width={0}
+                    tick={{ fontSize: 10 }}
+                    width={40}
+                    tickFormatter={formatYAxisValue}
                     domain={type === "spending" ? ["auto", 0] : [0, "auto"]}
+                    tickCount={5}
+                    stroke="hsl(var(--border))"
                   />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
                   <ChartTooltip
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
@@ -204,7 +271,8 @@ export default function MonthlyGraph({
                         <div className="rounded-lg border bg-background p-2 shadow-sm">
                           <div className="text-xs text-muted-foreground">
                             {data.date.toLocaleString("default", {
-                              month: "long",
+                              month: "short",
+                              day: "numeric",
                               year: "numeric",
                             })}
                           </div>

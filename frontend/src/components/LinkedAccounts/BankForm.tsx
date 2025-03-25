@@ -66,7 +66,7 @@ export default function BankForm() {
       // Redirect to the new account page if we have an ID
       if (newAccountId) {
         refreshAccounts();
-        router.push(`/accounts/${newAccountId}`);
+        router.push(`/accounts/bank/${newAccountId}`);
       }
     } catch (error) {
       console.error("Error creating bank account:", error);

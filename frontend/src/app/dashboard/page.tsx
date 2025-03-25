@@ -23,12 +23,11 @@ import MonthlyGraph from "@/components/MonthlyGraph/MonthlyGraph";
 import { calculateAssetGrowth } from "../assets/[id]/components/utils";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
 // Define the TimeRange type
-type TimeRange = "3M" | "6M" | "1Y" | "2Y" | "ALL";
+type TimeRange = "1M" | "3M" | "6M" | "1Y" | "2Y" | "ALL";
 
 // TimeRangeSelector component
 function TimeRangeSelector({
@@ -41,7 +40,7 @@ function TimeRangeSelector({
   return (
     <div className="flex items-center justify-end mb-2">
       <div className="flex items-center rounded-md border">
-        {(["3M", "6M", "1Y", "2Y", "ALL"] as TimeRange[]).map((range) => (
+        {(["1M", "3M", "6M", "1Y", "2Y", "ALL"] as TimeRange[]).map((range) => (
           <Button
             key={range}
             variant="ghost"
@@ -72,6 +71,8 @@ export default function Dashboard() {
   // Get number of months for the selected time range
   const getTimeRangeMonths = (range: TimeRange): number => {
     switch (range) {
+      case "1M":
+        return 1;
       case "3M":
         return 3;
       case "6M":
@@ -85,21 +86,27 @@ export default function Dashboard() {
     }
   };
 
+  // Check if we should use weekly data points
+  const shouldUseWeeklyPoints = (range: TimeRange): boolean => {
+    return range === "1M" || range === "3M";
+  };
+
   // Calculate networth data from all accounts and assets
   const calculateNetworth = () => {
     // Get all transactions from all accounts
-    const allTransactions = getCombinedTransactions().map((transaction) => {
-      // Handle different transaction types
-      const date = new Date(
-            "transaction_date" in transaction
-              ? transaction.transaction_date
-              : new Date().toISOString()
-          );
+    const allTransactions =
+      getCombinedTransactions().map((transaction) => {
+        // Handle different transaction types
+        const date = new Date(
+          "transaction_date" in transaction
+            ? transaction.transaction_date
+            : new Date().toISOString()
+        );
 
-          const amount = "amount" in transaction ? transaction.amount : 0;
+        const amount = "amount" in transaction ? transaction.amount : 0;
 
-          return { date, amount };
-        }) || []
+        return { date, amount };
+      }) || [];
 
     // Determine start and end dates for the data points
     const endDate = new Date();
@@ -155,8 +162,14 @@ export default function Dashboard() {
       startDate.setMonth(startDate.getMonth() - monthsToGoBack);
     }
 
-    // Ensure startDate is set to the beginning of its month
-    startDate.setDate(1);
+    // For weekly data points, keep day of week; for monthly, set to beginning of month
+    if (!shouldUseWeeklyPoints(selectedTimeRange)) {
+      startDate.setDate(1);
+    } else {
+      // Align to start of week (Sunday)
+      const day = startDate.getDay();
+      startDate.setDate(startDate.getDate() - day);
+    }
     startDate.setHours(0, 0, 0, 0);
 
     // Process assets
@@ -228,16 +241,23 @@ export default function Dashboard() {
       })
       .filter(Boolean); // Filter out null values
 
-    // Generate monthly data points (working backwards)
-    const monthlyDataPoints: { date: Date; netWorth: number }[] = [];
+    // Generate data points (monthly or weekly, working backwards)
+    const dataPoints: { date: Date; netWorth: number }[] = [];
 
     // Current date (we'll work backwards from here)
     let currentDate = new Date(endDate);
-    currentDate.setDate(1); // Set to first of month
+
+    // For weekly data, align to start of the week (Sunday)
+    if (shouldUseWeeklyPoints(selectedTimeRange)) {
+      const day = currentDate.getDay();
+      currentDate.setDate(currentDate.getDate() - day);
+    } else {
+      // For monthly data, set to first of month
+      currentDate.setDate(1);
+    }
     currentDate.setHours(0, 0, 0, 0);
 
     // Create function to calculate asset value for a specific date
-    // This function now includes assets purchased at any point in the month
     const calculateTotalAssetValueAtDate = (date: Date): number => {
       // Create a date for the last day of the given month
       const lastDayOfMonth = new Date(date);
@@ -273,80 +293,88 @@ export default function Dashboard() {
       }, 0);
     };
 
-    // Reset the month-by-month networth calculation
-    // Start with current month's networth
+    // Reset the networth calculation
+    // Start with current date's networth
     let currentNetWorth =
       getCombinedBalances() + calculateTotalAssetValueAtDate(currentDate);
 
-    // Add the current month data point
-    monthlyDataPoints.push({
+    // Add the current data point
+    dataPoints.push({
       date: new Date(currentDate),
       netWorth: currentNetWorth,
     });
 
-    // Work backwards month by month until we reach the start date
+    // Work backwards month by month or week by week until we reach the start date
     while (true) {
-      // Move to previous month
-      currentDate.setMonth(currentDate.getMonth() - 1);
+      // Move to previous period (month or week)
+      if (shouldUseWeeklyPoints(selectedTimeRange)) {
+        currentDate.setDate(currentDate.getDate() - 7); // One week back
+      } else {
+        currentDate.setMonth(currentDate.getMonth() - 1); // One month back
+      }
 
       // If we've gone past the start date, we're done
       if (currentDate < startDate) {
         break;
       }
 
-      const currentYearMonth = currentDate
-        .toISOString()
-        .split("T")[0]
-        .substring(0, 7);
-      const nextMonth = new Date(currentDate);
-      nextMonth.setMonth(nextMonth.getMonth() + 1);
-      const nextYearMonth = nextMonth
-        .toISOString()
-        .split("T")[0]
-        .substring(0, 7);
+      // For monthly data points
+      const currentPeriodStart = new Date(currentDate);
+      let nextPeriodStart;
 
-      // Find transactions that happened in the next month (since we're working backwards)
-      // These need to be removed from the current networth to get the previous month's networth
-      const monthTransactions = allTransactions.filter((transaction) => {
-        const transactionYearMonth = transaction.date
-          .toISOString()
-          .split("T")[0]
-          .substring(0, 7);
-        return transactionYearMonth === nextYearMonth;
+      if (shouldUseWeeklyPoints(selectedTimeRange)) {
+        nextPeriodStart = new Date(currentDate);
+        nextPeriodStart.setDate(nextPeriodStart.getDate() + 7);
+      } else {
+        nextPeriodStart = new Date(currentDate);
+        nextPeriodStart.setMonth(nextPeriodStart.getMonth() + 1);
+      }
+
+      // Format the date range strings for filtering transactions
+      const currentPeriodStr = currentPeriodStart.toISOString().split("T")[0];
+      const nextPeriodStr = nextPeriodStart.toISOString().split("T")[0];
+
+      // Find transactions that happened in the next period (since we're working backwards)
+      const periodTransactions = allTransactions.filter((transaction) => {
+        const transactionStr = transaction.date.toISOString().split("T")[0];
+        return (
+          transactionStr >= currentPeriodStr && transactionStr < nextPeriodStr
+        );
       });
 
-      // Calculate the total transaction amount for the next month
-      const monthTransactionSum = monthTransactions.reduce(
+      // Calculate the total transaction amount for the next period
+      const periodTransactionSum = periodTransactions.reduce(
         (sum, transaction) => sum + transaction.amount,
         0
       );
 
-      // Remove the next month's transactions from current networth
-      currentNetWorth -= monthTransactionSum;
+      // Remove the next period's transactions from current networth
+      currentNetWorth -= periodTransactionSum;
 
       // Rather than incrementally adjusting asset values, recalculate total asset value at this point
       // This ensures correct handling of assets purchased in the future
-      const nextMonthAssetValue = calculateTotalAssetValueAtDate(nextMonth);
-      const currentMonthAssetValue =
-        calculateTotalAssetValueAtDate(currentDate);
+      const nextPeriodAssetValue =
+        calculateTotalAssetValueAtDate(nextPeriodStart);
+      const currentPeriodAssetValue =
+        calculateTotalAssetValueAtDate(currentPeriodStart);
 
-      // When working backwards, we remove the asset value change from next month to current month
-      currentNetWorth -= nextMonthAssetValue - currentMonthAssetValue;
+      // When working backwards, we remove the asset value change from next period to current period
+      currentNetWorth -= nextPeriodAssetValue - currentPeriodAssetValue;
 
-      // Add data point for this month
-      monthlyDataPoints.push({
+      // Add data point for this period
+      dataPoints.push({
         date: new Date(currentDate),
         netWorth: currentNetWorth,
       });
     }
 
     // Reverse the array to get ascending date order
-    monthlyDataPoints.reverse();
+    dataPoints.reverse();
 
     // Sort by date (should already be sorted, but just to be safe)
-    monthlyDataPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
+    dataPoints.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    setNetworthData(monthlyDataPoints);
+    setNetworthData(dataPoints);
   };
 
   // Use useEffect to recalculate networth when accounts, assets, or time range changes
@@ -368,7 +396,7 @@ export default function Dashboard() {
       <div className="flex-1 p-4 md:p-6 overflow-hidden w-full">
         <div className="flex flex-col gap-4 md:gap-6 max-w-[1200px] mx-auto">
           {/* Header with title and action buttons */}
-          <div className="flex justify-between items-center mb-6 pl-2">
+          <div className="flex justify-between items-center pl-2">
             <h1 className="text-2xl font-bold truncate">Dashboard</h1>
             <div className="flex gap-2 shrink-0">
               <CreateAssetMessage />
@@ -399,20 +427,55 @@ export default function Dashboard() {
 
               {/* First row: Networth graph spanning full width */}
               <div className="w-full">
-                <Networth data={filteredNetworthData} />
+                <Networth
+                  data={filteredNetworthData}
+                  timeRange={selectedTimeRange}
+                />
               </div>
 
               {/* Second row: Spending categories on left (1/3 width), Income/Spending graphs on right (2/3 width) */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 md:gap-6">
                 {/* Left column: Spending categories (1/3 width) */}
                 <div className="w-full min-w-0 lg:col-span-4">
-                  <SpendingChart timeRange={selectedTimeRange} />
+                  <SpendingChart
+                    timeRange={
+                      selectedTimeRange as
+                        | "1M"
+                        | "3M"
+                        | "6M"
+                        | "1Y"
+                        | "2Y"
+                        | "ALL"
+                    }
+                  />
                 </div>
 
                 {/* Right column: Income and Spending graphs stacked (2/3 width) */}
                 <div className="w-full min-w-0 space-y-4 lg:col-span-8">
-                  <MonthlyGraph type="income" timeRange={selectedTimeRange} />
-                  <MonthlyGraph type="spending" timeRange={selectedTimeRange} />
+                  <MonthlyGraph
+                    type="income"
+                    timeRange={
+                      selectedTimeRange as
+                        | "1M"
+                        | "3M"
+                        | "6M"
+                        | "1Y"
+                        | "2Y"
+                        | "ALL"
+                    }
+                  />
+                  <MonthlyGraph
+                    type="spending"
+                    timeRange={
+                      selectedTimeRange as
+                        | "1M"
+                        | "3M"
+                        | "6M"
+                        | "1Y"
+                        | "2Y"
+                        | "ALL"
+                    }
+                  />
                 </div>
               </div>
             </>
