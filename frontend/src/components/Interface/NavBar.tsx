@@ -73,7 +73,7 @@ export function NavBar() {
                   >
                     Sign In
                   </Link>
-                  <Link href="/register">
+                  <Link href="/auth/signup">
                     <Button size="sm" className="font-medium">Sign Up</Button>
                   </Link>
                 </div>

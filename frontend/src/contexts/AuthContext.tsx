@@ -176,26 +176,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             last_name: metadata?.lastName,
           },
         },
-      });
+      }); 
 
       if (error) throw error;
-
-      // If sign up successful and user exists, insert into public.users table
-      if (data.user) {
-        // Create a properly typed user object for the database
-        const userData: CreateUserData = {
-          id: data.user.id,
-          first_name: metadata?.firstName || "",
-          last_name: metadata?.lastName || "",
-        };
-
-        // Use the utility function to create user
-        const success = await createUser(userData);
-
-        if (!success) {
-          console.error("Error inserting user data");
-        }
-      }
+      
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : "Error during sign up";

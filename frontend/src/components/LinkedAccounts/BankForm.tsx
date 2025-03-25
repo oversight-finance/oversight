@@ -76,7 +76,10 @@ export default function BankForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-2"
+    >
       {/* Hidden DialogClose component that we can click programmatically */}
       <DialogClose ref={dialogCloseRef} className="hidden" />
 

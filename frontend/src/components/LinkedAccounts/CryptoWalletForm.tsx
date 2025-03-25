@@ -115,7 +115,10 @@ export default function CryptoWalletForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-4 max-h-[70vh] overflow-y-auto p-1 pr-2"
+    >
       <div className="space-y-2">
         <label htmlFor="account_name">Wallet Name</label>
         <Input
