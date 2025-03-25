@@ -97,6 +97,33 @@ const formatPropertyType = (propertyType: string): string => {
     .join(" ");
 };
 
+// Balance calculation functions
+const calculateBankBalance = (transactions: any[]) => {
+  return transactions.reduce((sum, tx) => sum + tx.amount, 0);
+};
+
+const calculateInvestmentBalance = (transactions: any[]) => {
+  return transactions.reduce((sum, tx) => {
+    if (tx.transaction_type === "buy" || tx.transaction_type === "transfer") {
+      return sum + tx.quantity * tx.price_per_unit;
+    } else if (tx.transaction_type === "sell") {
+      return sum - tx.quantity * tx.price_per_unit;
+    }
+    return sum;
+  }, 0);
+};
+
+const calculateCryptoBalance = (transactions: any[]) => {
+  return transactions.reduce((sum, tx) => {
+    if (tx.transaction_type === "buy" || tx.transaction_type === "transfer") {
+      return sum + tx.amount * tx.price_at_transaction;
+    } else if (tx.transaction_type === "sell") {
+      return sum - tx.amount * tx.price_at_transaction;
+    }
+    return sum;
+  }, 0);
+};
+
 export function AssetsSidebar() {
   const { assets } = useAssets();
   const { accounts } = useAccounts();
@@ -144,15 +171,33 @@ export function AssetsSidebar() {
 
   // Get accounts of each type for display
   const getBankAccounts = () => {
-    return Object.values(accounts[AccountType.BANK] || {});
+    const bankAccounts = Object.values(
+      accounts[AccountType.BANK] || {}
+    ) as AccountWithTransactions[];
+    return bankAccounts.map((account) => ({
+      ...account,
+      balance: calculateBankBalance(account.transactions || []),
+    }));
   };
 
   const getInvestmentAccounts = () => {
-    return Object.values(accounts[AccountType.INVESTMENT] || {});
+    const investmentAccounts = Object.values(
+      accounts[AccountType.INVESTMENT] || {}
+    ) as AccountWithTransactions[];
+    return investmentAccounts.map((account) => ({
+      ...account,
+      balance: calculateInvestmentBalance(account.transactions || []),
+    }));
   };
 
   const getCryptoAccounts = () => {
-    return Object.values(accounts[AccountType.CRYPTO] || {});
+    const cryptoAccounts = Object.values(
+      accounts[AccountType.CRYPTO] || {}
+    ) as AccountWithTransactions[];
+    return cryptoAccounts.map((account) => ({
+      ...account,
+      balance: calculateCryptoBalance(account.transactions || []),
+    }));
   };
 
   const getCreditAccounts = () => {
@@ -284,7 +329,9 @@ export function AssetsSidebar() {
                 {investmentAccounts.map((account) => (
                   <SidebarMenuSubButton
                     key={account.id}
-                    onClick={() => router.push(`/accounts/investment/${account.id}`)}
+                    onClick={() =>
+                      router.push(`/accounts/investment/${account.id}`)
+                    }
                     className="py-2 h-auto"
                   >
                     <div className="flex flex-col items-start gap-1 w-full">

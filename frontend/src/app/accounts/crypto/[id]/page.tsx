@@ -5,8 +5,11 @@ import { useParams } from "next/navigation";
 import { useAccounts } from "@/contexts/AccountsContext";
 import AccountBalance from "@/components/AccountBalance/AccountBalance";
 import { formatCurrency } from "@/lib/utils";
-import { AccountType, CryptoWalletWithTransactions } from "@/types";
-import { CryptoWalletTransaction } from "@/types/Transaction";
+import {
+  AccountType,
+  CryptoWalletTransaction,
+  CryptoWalletWithTransactions,
+} from "@/types";
 import CryptoWalletTransactionTable from "@/components/TransactionTables/CryptoWallet/CryptoWalletTransactionTable";
 import DeleteAccountAlert from "@/components/DeleteAccountAlert/DeleteAccountAlert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -130,6 +133,17 @@ export default function CryptoWalletPage() {
       totalGainPercent,
     };
   }, [accounts, id, balance]);
+  // Calculate balance from transactions
+  const calculateWalletBalance = (transactions: CryptoWalletTransaction[]) => {
+    return transactions.reduce((sum, tx) => {
+      if (tx.transaction_type === "buy" || tx.transaction_type === "transfer") {
+        return sum + tx.amount * tx.price_at_transaction;
+      } else if (tx.transaction_type === "sell") {
+        return sum - tx.amount * tx.price_at_transaction;
+      }
+      return sum;
+    }, 0);
+  };
 
   // Update balance when account changes
   useEffect(() => {
@@ -142,7 +156,10 @@ export default function CryptoWalletPage() {
       const account = accounts[AccountType.CRYPTO][
         id as string
       ] as CryptoWalletWithTransactions;
-      setBalance(account.balance);
+      const calculatedBalance = calculateWalletBalance(
+        account.transactions || []
+      );
+      setBalance(calculatedBalance);
     }
   }, [accounts, isLoading, id]);
 
@@ -157,6 +174,17 @@ export default function CryptoWalletPage() {
   const cryptoWallet = accounts[AccountType.CRYPTO][
     id as string
   ] as CryptoWalletWithTransactions;
+
+  // Transform transactions to use fiat values
+  const walletWithFiatTransactions = {
+    ...cryptoWallet,
+    transactions: cryptoWallet.transactions.map((tx) => ({
+      ...tx,
+      amount: tx.amount * tx.price_at_transaction,
+    })),
+  };
+
+  console.log(walletWithFiatTransactions);
 
   return (
     <div className="p-6 space-y-6">
@@ -181,7 +209,7 @@ export default function CryptoWalletPage() {
       </div>
 
       <div className="w-full">
-        <AccountBalance account={cryptoWallet} />
+        <AccountBalance account={walletWithFiatTransactions} />
       </div>
 
       {/* Performance Metrics */}

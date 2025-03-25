@@ -38,7 +38,10 @@ export default function AccountPage() {
       const account = accounts[AccountType.BANK][
         id as string
       ] as BankAccountWithTransactions;
-      setBalance(account.balance);
+      const calculatedBalance = calculateAccountBalance(
+        account.transactions || []
+      );
+      setBalance(calculatedBalance);
     }
   }, [accounts, isLoading, id]);
 

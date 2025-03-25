@@ -5,7 +5,12 @@ import { useParams } from "next/navigation";
 import { useAccounts } from "@/contexts/AccountsContext";
 import AccountBalance from "@/components/AccountBalance/AccountBalance";
 import { formatCurrency } from "@/lib/utils";
-import { AccountType, InvestmentAccount, InvestmentTransaction } from "@/types";
+import {
+  AccountType,
+  InvestmentAccount,
+  InvestmentAccountWithTransactions,
+  InvestmentTransaction,
+} from "@/types";
 import InvestmentTransactionTable from "@/components/TransactionTables/Investment/InvestmentTransactionTable";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DeleteAccountAlert from "@/components/DeleteAccountAlert/DeleteAccountAlert";
@@ -135,20 +140,26 @@ export default function InvestmentAccountPage() {
     };
   }, [accounts, id, balance]);
 
-  // Update balance when account changes
+  // Calculate total balance from holdings
+  const calculateTotalBalance = (
+    holdings: Array<{
+      symbol: string;
+      quantity: number;
+      totalValue: number;
+    }>
+  ) => {
+    return holdings.reduce((sum, holding) => sum + holding.totalValue, 0);
+  };
+
+  // Update balance when holdings change
   useEffect(() => {
-    if (
-      !isLoading &&
-      accounts &&
-      id &&
-      accounts[AccountType.INVESTMENT]?.[id as string]
-    ) {
-      const account = accounts[AccountType.INVESTMENT][
-        id as string
-      ] as InvestmentAccount;
-      setBalance(account.balance);
+    if (holdings.length > 0) {
+      const calculatedBalance = calculateTotalBalance(holdings);
+      setBalance(calculatedBalance);
+    } else {
+      setBalance(0);
     }
-  }, [accounts, isLoading, id]);
+  }, [holdings]);
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error: {error}</div>;
@@ -160,7 +171,7 @@ export default function InvestmentAccountPage() {
 
   const investmentAccount = accounts[AccountType.INVESTMENT][
     id as string
-  ] as InvestmentAccount;
+  ] as InvestmentAccountWithTransactions;
 
   return (
     <div className="p-6 space-y-6">
