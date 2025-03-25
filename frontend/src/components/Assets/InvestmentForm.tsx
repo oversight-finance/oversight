@@ -87,7 +87,7 @@ export default function InvestmentForm({ onSuccess }: InvestmentFormProps) {
       console.error("Error creating investment account:", error);
       toast({
         title: "Error",
-        description: "Failed to create investment account",
+        description: "Failed to create investment account.",
         variant: "destructive",
       });
     } finally {
