@@ -12,6 +12,7 @@ import {
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { useAccounts, Transaction } from "@/contexts/AccountsContext";
 import { formatTotalAmount } from "@/lib/utils";
+import { AccountType } from "@/types/Account";
 
 interface DataPoint {
   date: Date;
@@ -76,18 +77,16 @@ export default function MonthlyGraph({
   type,
   timeRange = "1Y",
 }: MonthlyGraphProps) {
-  const { accounts } = useAccounts();
+  const { getAllTransactions } = useAccounts();
   const config = CHART_CONFIGS[type];
 
   // Get filtered transactions
-  const allTransactions = accounts.flatMap((account) =>
-    ((account as any).transactions || [])
-      .filter(config.filterFn)
-      .map((transaction: Transaction) => ({
-        date: new Date(transaction.transaction_date),
-        amount: config.transformAmount(transaction.amount),
-      }))
-  );
+  const allTransactions = getAllTransactions(AccountType.BANK)
+    .filter(config.filterFn)
+    .map((transaction: Transaction) => ({
+      date: new Date(transaction.transaction_date),
+      amount: config.transformAmount(transaction.amount),
+    }));
 
   // Calculate total
   const total = allTransactions.reduce((sum, t) => sum + t.amount, 0);

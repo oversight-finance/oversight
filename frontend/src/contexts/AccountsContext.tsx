@@ -2,35 +2,24 @@
 
 import { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  Account,
-  AccountType,
-  BankAccount,
-  InvestmentAccount,
-  CryptoWallet,
-  BankAccountWithTransactions,
-} from "@/types/Account";
+import { Account, AccountType, Accounts } from "@/types/Account";
 import {
   BankAccountTransaction,
   CryptoWalletTransaction,
   InvestmentTransaction,
 } from "@/types/Transaction";
-import { createClient } from "@/utils/supabase/client";
+import { createAccount } from "@/database/Accounts";
 import {
-  fetchUserAccounts,
-  createAccount,
-  fetchAccountById,
-} from "@/database/Accounts";
-import {
-  fetchBankAccountTransactions as fetchBankTxs,
-  // TODO: Implement these functions in the database/Transactions.ts file
-  // fetchInvestmentTransactions as fetchInvestmentTxs,
-  // fetchCryptoTransactions as fetchCryptoTxs
-} from "@/database/Transactions";
+  fetchBankAccountsWithTransactions,
+  fetchCryptoWalletsWithTransactions,
+  fetchInvestmentAccountsWithTransactions,
+} from "@/database";
 
 // Export database functions directly so components can use them
 export * from "@/database/Accounts";
 export * from "@/database/Transactions";
+export * from "@/database/InvestmentAccounts";
+export * from "@/types/Account";
 
 // Create a union type for all transaction types
 export type Transaction =
@@ -39,20 +28,26 @@ export type Transaction =
   | InvestmentTransaction;
 
 // Extended account type that includes transactions data
-export type AccountWithTransactions = Account & {
-  transactions?: Transaction[];
+export type AccountWithTransactions = Accounts & {
+  transactions: Transaction[];
 };
 
 // Core context interface - focused only on state management
 export type AccountsContextType = {
   // State
-  accounts: AccountWithTransactions[];
+  accounts: Record<AccountType, Record<string, AccountWithTransactions>>;
   isLoading: boolean;
   error: string | null;
 
   // Core actions
   refreshAccounts: () => Promise<void>;
-  getTransactions: (accountId: string) => Promise<Transaction[]>;
+  getTransactions: (
+    accountType: AccountType,
+    accountId: string
+  ) => Transaction[];
+  getAllTransactions: (accountType: AccountType) => Transaction[];
+  getCombinedTransactions: () => Transaction[];
+  getCombinedBalances: () => number;
   addAccount: (
     account: Omit<Account, "id" | "created_at" | "updated_at">
   ) => Promise<Account | null>;
@@ -61,11 +56,20 @@ export type AccountsContextType = {
 const AccountsContext = createContext<AccountsContextType | null>(null);
 
 export function AccountsProvider({ children }: { children: React.ReactNode }) {
-  const [accounts, setAccounts] = useState<AccountWithTransactions[]>([]);
+  const [accounts, setAccounts] = useState<
+    Record<AccountType, Record<string, AccountWithTransactions>>
+  >({} as Record<AccountType, Record<string, AccountWithTransactions>>);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const { getUserId } = useAuth();
-  const supabase = createClient();
+  const [cachedRange, setCachedRange] = useState<{ start: Date; end: Date }>(
+    () => {
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1);
+      const endDate = new Date();
+      return { start: startDate, end: endDate };
+    }
+  );
+  const { getUserId, isLoading: isAuthLoading } = useAuth();
   const userId = getUserId();
 
   // Fetch accounts on mount
@@ -79,47 +83,36 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(true);
       setError(null);
 
+      // Wait for auth context to be ready
+      if (isAuthLoading) {
+        return;
+      }
       if (!userId) {
         setError("User not authenticated");
         setIsLoading(false);
         return;
       }
 
-      // Use the database utility function to get accounts
-      const accountsList = await fetchUserAccounts(userId);
+      const accounts: Record<
+        AccountType,
+        Record<string, AccountWithTransactions>
+      > = {
+        [AccountType.BANK]: await fetchBankAccountsWithTransactions(
+          userId,
+          AccountType.BANK
+        ),
+        // TODO: Support CREDIT and SAVINGS accounts
+        // Currently fetches ALL transactions for all accounts
+        // TODO: Implement date range filtering optimizations
+        [AccountType.CREDIT]: {}, // await fetchBankAccountsWithTransactions(userId, AccountType.CREDIT, cachedRange),
+        [AccountType.SAVINGS]: {}, // await fetchBankAccountsWithTransactions(userId, AccountType.SAVINGS, cachedRange),
+        [AccountType.INVESTMENT]: await fetchInvestmentAccountsWithTransactions(
+          userId
+        ),
+        [AccountType.CRYPTO]: await fetchCryptoWalletsWithTransactions(userId),
+      };
 
-      // For each account, retrieve its transactions based on account type
-      const accountsWithTransactions = await Promise.all(
-        accountsList.map(async (account) => {
-          let transactions: Transaction[] = [];
-
-          switch (account.account_type) {
-            case AccountType.BANK:
-            case AccountType.CREDIT:
-            case AccountType.SAVINGS:
-              transactions = await fetchBankTxs(account.id);
-              break;
-            case AccountType.INVESTMENT:
-            case AccountType.CRYPTO:
-              // TODO: Implement fetchCryptoTxs
-              // transactions = await fetchCryptoTxs(account.id);
-              console.warn("Crypto transactions not yet implemented");
-              break;
-            default:
-              // Handle unsupported account types
-              console.warn(
-                `Transactions for account type ${account.account_type} not yet supported`
-              );
-          }
-
-          return {
-            ...account,
-            transactions,
-          };
-        })
-      );
-
-      setAccounts(accountsWithTransactions);
+      setAccounts(accounts);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to fetch accounts";
@@ -130,42 +123,99 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Get transactions for a specific account - handles different account types
-  const getTransactions = async (accountId: string): Promise<Transaction[]> => {
-    try {
-      // First, get the account to determine its type
-      const account = await fetchAccountById(accountId);
-
-      if (!account) {
-        console.error(`Account not found with ID: ${accountId}`);
-        return [];
-      }
-
-      // Based on account type, call the appropriate fetch function
-      switch (account.account_type) {
-        case AccountType.BANK:
-        case AccountType.CREDIT:
-        case AccountType.SAVINGS:
-          return await fetchBankTxs(accountId);
-
-        case AccountType.INVESTMENT:
-        case AccountType.CRYPTO:
-          // TODO: Implement fetchCryptoTxs
-          // return await fetchCryptoTxs(accountId);
-          console.warn("Crypto transactions not yet implemented");
-          return [];
-
-        default:
-          console.error(`Unsupported account type: ${account.account_type}`);
-          return [];
-      }
-    } catch (error) {
-      console.error(
-        `Error fetching transactions for account ${accountId}:`,
-        error
-      );
+  /**
+   * Get all transactions for a specific account type
+   * @param accountType - The type of account to get transactions for
+   * @returns An array of transactions
+   */
+  const getAllTransactions = (accountType: AccountType): Transaction[] => {
+    if (!accounts[accountType]) {
       return [];
     }
+    const accountsOfType = Object.values(accounts[accountType]);
+    return accountsOfType.flatMap((account) => account.transactions);
+  };
+
+  /**
+   * Get combined transactions for all accounts types
+   * @returns An array of transactions
+   */
+  const getCombinedTransactions = (): Transaction[] => {
+    // Get all transactions from each account type
+    const allTransactions = Object.values(AccountType).flatMap(
+      (accountType) => {
+        return getAllTransactions(accountType).map((transaction) => {
+          // For investment and crypto transactions, calculate the actual amount
+          if (
+            "price_per_unit" in transaction &&
+            transaction.quantity &&
+            transaction.price_per_unit
+          ) {
+            // Investment transaction
+            const amount = transaction.price_per_unit * transaction.quantity;
+            return {
+              ...transaction,
+              amount:
+                amount * (transaction.transaction_type === "sell" ? -1 : 1),
+            };
+          } else if ("price_at_transaction" in transaction) {
+            // Crypto transaction
+            const amount =
+              transaction.price_at_transaction * transaction.amount;
+            return {
+              ...transaction,
+              amount:
+                amount * (transaction.transaction_type === "sell" ? -1 : 1),
+            };
+          }
+          return transaction;
+        });
+      }
+    );
+
+    // Sort transactions by date, most recent first
+    return allTransactions.sort(
+      (a, b) =>
+        new Date(b.transaction_date).getTime() -
+        new Date(a.transaction_date).getTime()
+    );
+  };
+
+  const getCombinedBalances = (): number => {
+    const combinedTransactions = getCombinedTransactions();
+    return combinedTransactions.reduce((acc, transaction) => {
+      return acc + transaction.amount;
+    }, 0);
+  };
+  // Get transactions for a specific account - handles different account types
+  const getTransactions = (
+    accountType: AccountType,
+    accountId: string
+  ): Transaction[] => {
+    const account = accounts[accountType][accountId];
+    return account.transactions;
+  };
+
+  const setDateRange = (start: Date, end: Date) => {
+    // Check if the requested date range is already cached
+    if (
+      !cachedRange ||
+      start.getTime() < cachedRange.start.getTime() ||
+      end.getTime() > cachedRange.end.getTime()
+    ) {
+      // If the range isn't cached or is outside the current cache, refresh accounts with the new range
+      const newRange = { start, end };
+      setCachedRange(newRange);
+
+      // Trigger a refresh with the new date range
+      setTimeout(() => {
+        refreshAccounts();
+      }, 0);
+    } else {
+      // If the range is already within our cached data, just update the visible range
+      setCachedRange({ start, end });
+    }
+    setCachedRange({ start, end });
   };
 
   // Add a new account to the database
@@ -202,13 +252,16 @@ export function AccountsProvider({ children }: { children: React.ReactNode }) {
     <AccountsContext.Provider
       value={{
         // State
-        accounts,
+        accounts: accounts,
         isLoading,
         error,
 
         // Core actions
         refreshAccounts,
         getTransactions,
+        getAllTransactions,
+        getCombinedTransactions,
+        getCombinedBalances,
         addAccount,
       }}
     >

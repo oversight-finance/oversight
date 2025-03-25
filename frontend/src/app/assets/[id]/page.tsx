@@ -5,12 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAssets } from "@/contexts/AssetsContext";
 import { AssetType } from "@/types/Asset";
 import { Button } from "@/components/ui/button";
-import {
-  VehicleDetails,
-  RealEstateDetails,
-  StockDetails,
-  CryptoDetails,
-} from "./components";
+import { VehicleDetails, RealEstateDetails } from "./components";
 import { Vehicle } from "@/types/Vehicle";
 import { RealEstate } from "@/types/RealEstate";
 
@@ -51,7 +46,7 @@ export default function AssetDetailsPage({
     } else if ("property_type" in asset) {
       return AssetType.REAL_ESTATE;
     }
-    return AssetType.STOCK; // Default fallback
+    throw new Error("Invalid asset type");
   };
 
   const assetType = getAssetType();
@@ -72,10 +67,6 @@ export default function AssetDetailsPage({
         return <VehicleDetails asset={asset as Vehicle} />;
       case AssetType.REAL_ESTATE:
         return <RealEstateDetails realEstate={asset as RealEstate} />;
-      case AssetType.STOCK:
-        return <StockDetails asset={asset} />;
-      case AssetType.CRYPTO:
-        return <CryptoDetails asset={asset} />;
       default:
         return (
           <div className="flex items-center justify-center h-[300px]">

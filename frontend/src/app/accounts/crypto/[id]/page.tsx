@@ -43,7 +43,7 @@ export default function CryptoWalletPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold">{cryptoWallet.wallet_name}</h1>
+          <h1 className="text-2xl font-bold">{cryptoWallet.account_name}</h1>
           <p className="text-muted-foreground">
             {cryptoWallet.coin_symbol} Wallet
           </p>

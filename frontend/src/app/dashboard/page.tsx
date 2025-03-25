@@ -61,7 +61,8 @@ function TimeRangeSelector({
 }
 
 export default function Dashboard() {
-  const { accounts } = useAccounts();
+  const { accounts, getCombinedTransactions, getCombinedBalances } =
+    useAccounts();
   const { assets } = useAssets();
   const { getUserId } = useAuth();
   const userId = getUserId();
@@ -87,11 +88,9 @@ export default function Dashboard() {
   // Calculate networth data from all accounts and assets
   const calculateNetworth = () => {
     // Get all transactions from all accounts
-    const allTransactions = accounts.flatMap(
-      (account) =>
-        account.transactions?.map((transaction) => {
-          // Handle different transaction types
-          const date = new Date(
+    const allTransactions = getCombinedTransactions().map((transaction) => {
+      // Handle different transaction types
+      const date = new Date(
             "transaction_date" in transaction
               ? transaction.transaction_date
               : new Date().toISOString()
@@ -101,12 +100,6 @@ export default function Dashboard() {
 
           return { date, amount };
         }) || []
-    );
-
-    // Sort transactions by date (descending - newest first)
-    const sortedTransactions = allTransactions.sort(
-      (a, b) => b.date.getTime() - a.date.getTime()
-    );
 
     // Determine start and end dates for the data points
     const endDate = new Date();
@@ -118,9 +111,9 @@ export default function Dashboard() {
       let earliestDate: Date | null = null;
 
       // Check transactions
-      if (sortedTransactions.length > 0) {
+      if (allTransactions.length > 0) {
         earliestDate = new Date(
-          sortedTransactions[sortedTransactions.length - 1].date
+          allTransactions[allTransactions.length - 1].date
         );
       }
 
@@ -238,12 +231,6 @@ export default function Dashboard() {
     // Generate monthly data points (working backwards)
     const monthlyDataPoints: { date: Date; netWorth: number }[] = [];
 
-    // Start with current account balances
-    const currentAccountBalance = accounts.reduce(
-      (sum, account) => sum + (account.balance || 0),
-      0
-    );
-
     // Current date (we'll work backwards from here)
     let currentDate = new Date(endDate);
     currentDate.setDate(1); // Set to first of month
@@ -289,7 +276,7 @@ export default function Dashboard() {
     // Reset the month-by-month networth calculation
     // Start with current month's networth
     let currentNetWorth =
-      currentAccountBalance + calculateTotalAssetValueAtDate(currentDate);
+      getCombinedBalances() + calculateTotalAssetValueAtDate(currentDate);
 
     // Add the current month data point
     monthlyDataPoints.push({
@@ -320,7 +307,7 @@ export default function Dashboard() {
 
       // Find transactions that happened in the next month (since we're working backwards)
       // These need to be removed from the current networth to get the previous month's networth
-      const monthTransactions = sortedTransactions.filter((transaction) => {
+      const monthTransactions = allTransactions.filter((transaction) => {
         const transactionYearMonth = transaction.date
           .toISOString()
           .split("T")[0]
@@ -371,7 +358,10 @@ export default function Dashboard() {
   const filteredNetworthData = networthData;
 
   // Check if we should show the empty state message
-  const showEmptyState = accounts.length === 0 && assets.length === 0 && userId;
+  const showEmptyState =
+    Object.keys(accounts).length === 0 &&
+    Object.keys(assets).length === 0 &&
+    userId;
 
   return (
     <div className="flex min-h-screen w-full">

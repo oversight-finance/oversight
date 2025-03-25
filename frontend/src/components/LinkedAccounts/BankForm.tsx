@@ -18,7 +18,7 @@ export default function BankForm() {
     institution_name: "",
     account_number: "",
     routing_number: "",
-    currency: "USD",
+    currency: "CAD",
     balance: 0,
     account_type: BankAccountType.CHECKING,
   });
@@ -53,7 +53,7 @@ export default function BankForm() {
         institution_name: "",
         account_number: "",
         routing_number: "",
-        currency: "USD",
+        currency: "CAD",
         balance: 0,
         account_type: BankAccountType.CHECKING,
       });

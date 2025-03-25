@@ -13,6 +13,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.accounts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  account_name text NOT NULL,
   account_type account_type NOT NULL,
   balance numeric(12, 2) NOT NULL,
   created_at timestamptz DEFAULT now(),
@@ -24,7 +25,6 @@ ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
 -- Represents financial bank accounts for each user.
 CREATE TABLE IF NOT EXISTS public.bank_accounts (
   account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
-  account_name text NOT NULL,
   institution_name text NOT NULL,
   account_number text NOT NULL,
   routing_number text NOT NULL,
@@ -68,7 +68,6 @@ ALTER TABLE public.recurring_schedules ENABLE ROW LEVEL SECURITY;
 CREATE TABLE IF NOT EXISTS public.crypto_wallets (
   account_id uuid NOT NULL REFERENCES public.accounts(id) ON DELETE CASCADE,
   coin_symbol text NOT NULL,  -- e.g., 'BTC', 'ETH', 'SOL'
-  wallet_name text NOT NULL,
   wallet_address text,
   balance numeric(16, 8) NOT NULL, -- Higher precision for crypto amounts
   PRIMARY KEY (account_id)

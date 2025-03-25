@@ -63,7 +63,7 @@ export default function RealEstateForm() {
     mortgage_interest_rate: 0,
     mortgage_term_years: 30,
     property_tax_annual: 0,
-    currency: "USD",
+    currency: "CAD",
     annual_growth_rate: 3, // Default 3% annual appreciation
     current_value: 0,
   });
@@ -176,7 +176,7 @@ export default function RealEstateForm() {
           mortgage_interest_rate: 0,
           mortgage_term_years: 30,
           property_tax_annual: 0,
-          currency: "USD",
+          currency: "CAD",
           annual_growth_rate: 3,
         });
 
@@ -521,7 +521,7 @@ export default function RealEstateForm() {
               Currency
             </label>
             <Select
-              value={formData.currency || "USD"}
+              value={formData.currency || "CAD"}
               onValueChange={(value) =>
                 setFormData({
                   ...formData,
@@ -533,8 +533,8 @@ export default function RealEstateForm() {
                 <SelectValue placeholder="Select Currency" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="USD">USD ($)</SelectItem>
                 <SelectItem value="CAD">CAD ($)</SelectItem>
+                <SelectItem value="USD">USD ($)</SelectItem>
                 <SelectItem value="EUR">EUR (€)</SelectItem>
                 <SelectItem value="GBP">GBP (£)</SelectItem>
                 <SelectItem value="JPY">JPY (¥)</SelectItem>

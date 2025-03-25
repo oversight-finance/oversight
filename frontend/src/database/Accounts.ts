@@ -1,5 +1,6 @@
 import { createClient } from "@/utils/supabase/client";
-import { Account, AccountType } from "@/types/Account";
+import { Account, Accounts, AccountType } from "@/types/Account";
+import { fetchBankAccountWithTransactions } from "./BankAccounts";
 
 // Type aliases for better readability
 type AccountData = Omit<Account, "id" | "created_at" | "updated_at">;

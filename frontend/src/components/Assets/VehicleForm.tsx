@@ -128,7 +128,7 @@ export default function VehicleForm() {
     current_value: 0,
     purchase_date: new Date().toISOString().split("T")[0], // Today's date in YYYY-MM-DD format
     vin: "",
-    currency: "USD",
+    currency: "CAD",
     payment_method: CarPaymentMethod.CASH,
     loan_amount: 0,
     interest_rate: 0,
@@ -198,7 +198,7 @@ export default function VehicleForm() {
         purchase_date:
           formData.purchase_date || new Date().toISOString().split("T")[0],
         vin: formData.vin || "",
-        currency: formData.currency || "USD",
+        currency: formData.currency || "CAD",
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         payment_method: formData.payment_method,
@@ -238,7 +238,7 @@ export default function VehicleForm() {
           current_value: 0,
           purchase_date: new Date().toISOString().split("T")[0],
           vin: "",
-          currency: "USD",
+          currency: "CAD",
           payment_method: CarPaymentMethod.CASH,
           loan_amount: 0,
           interest_rate: 0,

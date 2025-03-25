@@ -41,7 +41,7 @@ export default function CryptoWalletForm() {
   const { getUserId } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    wallet_name: "",
+    account_name: "",
     wallet_address: "",
     coin_symbol: "",
     balance: 0,
@@ -65,7 +65,7 @@ export default function CryptoWalletForm() {
 
       const wallet: CreateCryptoWallet = {
         account_type: AccountType.CRYPTO,
-        wallet_name: formData.wallet_name,
+        account_name: formData.account_name,
         wallet_address: formData.wallet_address || undefined,
         coin_symbol: formData.coin_symbol.toUpperCase(),
         balance: formData.balance,
@@ -94,7 +94,7 @@ export default function CryptoWalletForm() {
 
         // Reset form
         setFormData({
-          wallet_name: "",
+          account_name: "",
           wallet_address: "",
           coin_symbol: "",
           balance: 0,
@@ -117,12 +117,12 @@ export default function CryptoWalletForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="space-y-2">
-        <label htmlFor="wallet_name">Wallet Name</label>
+        <label htmlFor="account_name">Wallet Name</label>
         <Input
-          id="wallet_name"
-          value={formData.wallet_name}
+          id="account_name"
+          value={formData.account_name}
           onChange={(e) =>
-            setFormData({ ...formData, wallet_name: e.target.value })
+            setFormData({ ...formData, account_name: e.target.value })
           }
           placeholder="My Bitcoin Wallet"
           required

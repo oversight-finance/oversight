@@ -9,18 +9,8 @@ import {
   Tooltip,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ChartContainer } from "@/components/ui/chart";
 import { useAccounts } from "@/contexts/AccountsContext";
-import {
-  BankAccountTransaction,
-  CryptoWalletTransaction,
-  InvestmentTransaction,
-  TransactionBase,
-  Transaction,
-} from "@/types/Transaction";
-
-// Define a type that handles all transaction types
-type AnyTransaction = Transaction;
+import { AccountType } from "@/types/Account";
 
 interface SpendingChartProps {
   timeRange?: "3M" | "6M" | "1Y" | "2Y" | "ALL";
@@ -95,19 +85,18 @@ const filterTransactionsByTimeRange = (
 
   // Filter transactions for dates after cutoff
   return transactions.filter((t) => {
-    const date = new Date((t as AnyTransaction).transaction_date);
-    return date >= cutoffDate;
+    return new Date(t.transaction_date) >= cutoffDate;
   });
 };
 
 export default function SpendingChart({
   timeRange = "1Y",
 }: SpendingChartProps) {
-  const { accounts } = useAccounts();
+  const { getAllTransactions } = useAccounts();
 
-  // Get all transactions and filter out positive amounts (income)
-  let allTransactions = accounts.flatMap((account) =>
-    (account.transactions || []).filter((t) => (t as AnyTransaction).amount < 0)
+  // Get all bank transactions and filter out positive amounts (income)
+  let allTransactions = getAllTransactions(AccountType.BANK).filter(
+    (t) => t.amount < 0
   );
 
   // Apply time range filtering
@@ -115,15 +104,14 @@ export default function SpendingChart({
 
   // Group transactions by category and calculate total spending
   const spendingByCategory = allTransactions.reduce((acc, transaction) => {
-    const transactionObj = transaction as AnyTransaction;
     // Use only for bank transactions which have categories
-    if ("category" in transactionObj) {
-      const category = transactionObj.category || "Uncategorized";
-      acc[category] = (acc[category] || 0) + Math.abs(transactionObj.amount);
+    if ("category" in transaction) {
+      const category = transaction.category || "Uncategorized";
+      acc[category] = (acc[category] || 0) + Math.abs(transaction.amount);
     } else {
       // For other transaction types
       const category = "Other";
-      acc[category] = (acc[category] || 0) + Math.abs(transactionObj.amount);
+      acc[category] = (acc[category] || 0) + Math.abs(transaction.amount);
     }
     return acc;
   }, {} as Record<string, number>);

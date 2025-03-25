@@ -33,8 +33,6 @@ type DialogState = {
 };
 
 const assetTypeIcons = {
-  [AssetType.CRYPTO]: <Coins className="h-4 w-4" />,
-  [AssetType.STOCK]: <CircleDollarSign className="h-4 w-4" />,
   [AssetType.REAL_ESTATE]: <Home className="h-4 w-4" />,
   [AssetType.VEHICLE]: <Car className="h-4 w-4" />,
 };
@@ -45,14 +43,9 @@ const accountTypeIcons: Record<AccountType, React.ReactNode> = {
   [AccountType.CREDIT]: <CircleDollarSign className="h-4 w-4" />,
   [AccountType.CRYPTO]: <Coins className="h-4 w-4" />,
   [AccountType.SAVINGS]: <Building2 className="h-4 w-4" />,
-  [AccountType.STOCK]: <CircleDollarSign className="h-4 w-4" />,
-  [AccountType.REAL_ESTATE]: <Home className="h-4 w-4" />,
-  [AccountType.VEHICLE]: <Car className="h-4 w-4" />,
 };
 
 const assetTypeLabels = {
-  [AssetType.CRYPTO]: "Cryptocurrency",
-  [AssetType.STOCK]: "Stock",
   [AssetType.REAL_ESTATE]: "Real Estate",
   [AssetType.VEHICLE]: "Vehicle",
 };
@@ -255,7 +248,7 @@ export default function CreateAssetMessage() {
   };
 
   // Show the message if there are no accounts and no assets
-  if (accounts.length === 3 && assets.length === 0) {
+  if (Object.keys(accounts).length === 0 && Object.keys(assets).length === 0) {
     return (
       <Dialog
         open={dialogState.isOpen}

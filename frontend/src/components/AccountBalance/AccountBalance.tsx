@@ -65,9 +65,10 @@ export default function AccountBalance({ account }: AccountBalanceProps) {
   // Fetch transactions when account changes
   useEffect(() => {
     async function fetchTransactions() {
-      const txs = await getTransactions(account.id);
+      const txs = getTransactions(account.account_type, account.id);
       setTransactions(txs);
 
+      // TODO: Remove sorting
       if (txs && txs.length > 0) {
         const sortedTxs = [...txs].sort((a, b) => {
           // Handle different transaction types by checking for transaction_date property

@@ -14,23 +14,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { DataTable } from "@/components/DataTable/DataTable";
 import { useAccounts } from "@/contexts/AccountsContext";
-import { fetchBankAccountWithTransactions } from "@/database/Accounts";
-import { toUITransactions } from "@/types/Transaction";
-import { BankAccountTransaction } from "@/types/BankAccountTransaction";
+import { AccountType } from "@/types/Account";
 
 interface UserData {
   id: string;
   email?: string;
   created_at?: string;
-  [key: string]: string | number | boolean | null;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 export default function SupabasePlayground() {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [bankAccountsWithTransactions, setBankAccountsWithTransactions] = useState<any[]>([]);
+  const [accountsWithTransactions, setAccountsWithTransactions] = useState<any[]>([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
+  const [selectedAccountType, setSelectedAccountType] = useState<AccountType>(AccountType.BANK);
   const { accounts } = useAccounts();
 
   // Function to fetch the current user's data
@@ -83,76 +82,39 @@ export default function SupabasePlayground() {
     }
   };
 
-  // Function to fetch bank accounts with transactions
-  const fetchBankAccounts = async () => {
-    setLoadingAccounts(true);
-    try {
-      if (!accounts || accounts.length === 0) {
-        return;
-      }
-
-      // Filter for bank accounts only
-      const bankAccountIds = accounts
-        .filter(account => account.account_type === 'bank')
-        .map(account => account.id);
-
-      if (bankAccountIds.length === 0) {
-        return;
-      }
-
-      // Fetch each bank account with its transactions
-      const accountsWithTransactionsPromises = bankAccountIds.map(
-        async (accountId) => {
-          const accountWithTransactions = await fetchBankAccountWithTransactions(accountId);
-          if (accountWithTransactions) {
-            // Convert transactions to UI format
-            const uiTransactions = toUITransactions(accountWithTransactions.transactions);
-            return {
-              ...accountWithTransactions,
-              uiTransactions
-            };
-          }
-          return null;
-        }
-      );
-
-      const results = await Promise.all(accountsWithTransactionsPromises);
-      setBankAccountsWithTransactions(results.filter(Boolean));
-    } catch (err) {
-      console.error("Error fetching bank accounts:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch bank accounts"
-      );
-    } finally {
-      setLoadingAccounts(false);
-    }
-  };
-
-  // Fetch bank accounts when accounts context changes
-  useEffect(() => {
-    if (accounts && accounts.length > 0) {
-      fetchBankAccounts();
-    }
-  }, [accounts]);
+  // // Function to fetch accounts with transactions
+  // const fetchAccountsWithTransactions = async () => {
+  //   setLoadingAccounts(true);
+  //   setError(null);
+    
+  //   try {
+  //     if (!userData?.id) {
+  //       setError("User not authenticated");
+  //       return;
+  //     }
+      
+  //     const accounts = await fetchBankAccountsWithTransactions(userData.id);
+  //     console.log(accounts);
+  //     setAccountsWithTransactions(accounts);
+  //   } catch (err) {
+  //     console.error("Error fetching accounts with transactions:", err);
+  //     setError(
+  //       err instanceof Error ? err.message : "Failed to fetch accounts with transactions"
+  //     );
+  //   } finally {
+  //     setLoadingAccounts(false);
+  //   }
+  // };
 
   // Define columns for the accounts table
   const accountColumns = [
     {
       header: "Account Name",
-      accessorKey: "account_name",
-      cell: (value: any, row: any) => {
-        const bankAccount = row.bank_accounts?.[0];
-        return bankAccount?.account_name || "N/A";
-      }
+      accessorKey: "account_name"
     },
     {
       header: "Institution",
-      accessorKey: "institution_name",
-      cell: (value: any, row: any) => {
-        console.log("row", row);
-        const bankAccount = row.bank_accounts?.[0];
-        return bankAccount?.institution_name || "N/A";
-      }
+      accessorKey: "institution_name"
     },
     {
       header: "Balance",
@@ -161,49 +123,16 @@ export default function SupabasePlayground() {
       cell: (value: any) => {
         return new Intl.NumberFormat('en-US', {
           style: 'currency',
-          currency: 'USD'
+          currency: 'CAD'
         }).format(value || 0);
       }
     },
     {
       header: "Account Number",
       accessorKey: "account_number",
-      cell: (value: any, row: any) => {
-        const bankAccount = row.bank_accounts?.[0];
-        const accountNumber = bankAccount?.account_number || "";
+      cell: (value: any) => {
         // Mask account number for security
-        return accountNumber ? `****${accountNumber.slice(-4)}` : "N/A";
-      }
-    }
-  ];
-
-  // Define columns for the transactions table
-  const transactionColumns = [
-    {
-      header: "Date",
-      accessorKey: "date",
-      type: "date",
-      cell: (value: any) => {
-        return value ? new Date(value).toLocaleDateString() : "N/A";
-      }
-    },
-    {
-      header: "Merchant",
-      accessorKey: "merchant"
-    },
-    {
-      header: "Category",
-      accessorKey: "category"
-    },
-    {
-      header: "Amount",
-      accessorKey: "amount",
-      type: "currency",
-      cell: (value: any) => {
-        return new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD'
-        }).format(value || 0);
+        return value ? `****${value.slice(-4)}` : "N/A";
       }
     }
   ];
@@ -215,7 +144,7 @@ export default function SupabasePlayground() {
       <Tabs defaultValue="user-info" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="user-info">User Info</TabsTrigger>
-          <TabsTrigger value="bank-accounts">Bank Accounts</TabsTrigger>
+          <TabsTrigger value="accounts-with-transactions">Accounts With Transactions</TabsTrigger>
           <TabsTrigger value="storage">Storage</TabsTrigger>
           <TabsTrigger value="functions">Functions</TabsTrigger>
         </TabsList>
@@ -254,19 +183,30 @@ export default function SupabasePlayground() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="bank-accounts">
+        <TabsContent value="accounts-with-transactions">
           <Card>
             <CardHeader>
-              <CardTitle>Bank Accounts</CardTitle>
+              <CardTitle>Accounts With Transactions</CardTitle>
               <CardDescription>
-                View your bank accounts and transactions
+                View your accounts with transactions using fetchUserAccountsWithTransactions
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex gap-4 mb-6">
-                <Button onClick={fetchBankAccounts} disabled={loadingAccounts}>
-                  {loadingAccounts ? "Loading..." : "Refresh Accounts"}
-                </Button>
+                <select 
+                  className="p-2 border rounded-md"
+                  value={selectedAccountType}
+                  onChange={(e) => setSelectedAccountType(e.target.value as AccountType)}
+                >
+                  <option value={AccountType.BANK}>Bank Accounts</option>
+                  <option value={AccountType.CREDIT}>Credit Accounts</option>
+                  <option value={AccountType.SAVINGS}>Savings Accounts</option>
+                  <option value={AccountType.INVESTMENT}>Investment Accounts</option>
+                  <option value={AccountType.CRYPTO}>Crypto Wallets</option>
+                </select>
+                {/* <Button onClick={fetchAccountsWithTransactions} disabled={loadingAccounts}> */}
+                  {/* {loadingAccounts ? "Loading..." : "Fetch Accounts"} */}
+                {/* </Button> */}
               </div>
 
               {error && (
@@ -275,40 +215,26 @@ export default function SupabasePlayground() {
                 </div>
               )}
 
-              {accounts && accounts.length > 0 ? (
+              {accountsWithTransactions.length > 0 ? (
                 <div>
-                  <h3 className="text-xl font-medium mb-4">Your Bank Accounts</h3>
-                  <DataTable<BankAccountTransaction>
-                    data={accounts.filter(account => account.account_type === 'bank')}
+                  <h3 className="text-xl font-medium mb-4">Your {selectedAccountType} Accounts</h3>
+                  <DataTable
+                    data={accountsWithTransactions}
                     columns={accountColumns}
-                    title="Bank Accounts"
-                    showActions={false}
-                    emptyMessage="No bank accounts found"
+                    title={`${selectedAccountType} Accounts`}
+                    // emptyMessage={`No ${selectedAccountType} accounts found`}
                   />
                   
-                  {bankAccountsWithTransactions.length > 0 && (
-                    <div className="mt-8">
-                      <h3 className="text-xl font-medium mb-4">Recent Transactions</h3>
-                      {bankAccountsWithTransactions.map((account, index) => (
-                        <div key={account.id} className="mb-8">
-                          <h4 className="text-lg font-medium mb-2">
-                            {account.bank_accounts?.[0]?.account_name || `Account ${index + 1}`}
-                          </h4>
-                          <DataTable
-                            data={account.uiTransactions || []}
-                            columns={transactionColumns}
-                            title={`Transactions`}
-                            showActions={false}
-                            emptyMessage="No transactions found"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="mt-8">
+                    <h3 className="text-xl font-medium mb-4">Raw Data</h3>
+                    <pre className="bg-slate-50 p-4 rounded-md overflow-auto max-h-96">
+                      {JSON.stringify(accountsWithTransactions, null, 2)}
+                    </pre>
+                  </div>
                 </div>
               ) : (
                 <div className="text-center p-8 bg-slate-50 rounded-md">
-                  <p>No bank accounts found. Please add an account first.</p>
+                  <p>No accounts found. Please fetch accounts first.</p>
                 </div>
               )}
             </CardContent>
